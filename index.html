@@ -429,6 +429,52 @@ var WINEMAKING=[['new-oak','Heavy new oak'],['neutral-oak','Neutral / old oak'],
   ['lees','Lees ageing / sur lie'],['amphora','Amphora / concrete'],['oxidative','Oxidative handling'],['skin-contact','Skin contact']];
 var WINE_TYPES=[['red','Red'],['white','White'],['rose','Rosé'],['sparkling','Sparkling'],['fortified','Fortified']];
 var CORE_TYPES=['red','white'];
+/* Sight-step option sets. These live here rather than inline in the grid so
+   that every surface — the grid, the session detail, recall — renders the
+   same human label for a stored id instead of the id itself.            */
+var CLARITY=[['clear','clear'],['hazy','hazy']];
+var RIM=[['none','none'],['slight','slight'],['pronounced','pronounced']];
+var LEGS=[['light','light legs'],['medium','medium legs'],['heavy','heavy legs']];
+var GUMSTAIN=[['yes','staining'],['no','none']];
+var BUBBLES=[['none','none'],['petillance','pétillance'],
+  ['fine-sediment','fine sediment'],['heavy-sediment','heavy sediment']];
+
+/* ---- one place that knows how to name a field and format its value ---- */
+var FIELD_LABEL={
+  wineType:'Wine type',clarity:'Clarity',concentration:'Concentration',hue:'Hue',
+  rim:'Rim variation',legs:'Tears / legs',gumStain:'Gum staining',bubbles:'Bubbles & sediment',
+  condition:'Fruit condition',aromas:'Aromas',noseIntensity:'Aromatic intensity',
+  sweetness:'Sweetness',acidity:'Acidity',tannin:'Tannin',tanninTexture:'Tannin texture',
+  alcohol:'Alcohol',body:'Body',mouthfeel:'Mouthfeel',flavorIntensity:'Flavour intensity',
+  finish:'Finish',palateConfirm:'Carried onto the palate',palateOnly:'Palate-only notes',
+  balance:'Balance',finishesOn:'Finishes on',quality:'Perceived quality',
+  world:'Old / New World',climate:'Climate',vintage:'Vintage range',winemaking:'Winemaking'
+};
+var FIELD_SCALE={concentration:'concentration',noseIntensity:'intensity',
+  flavorIntensity:'intensity',sweetness:'sweetness',acidity:'acidity',tannin:'tannin',
+  alcohol:'alcohol',body:'body',finish:'finish'};
+var FIELD_OPTS={wineType:WINE_TYPES,clarity:CLARITY,rim:RIM,legs:LEGS,gumStain:GUMSTAIN,
+  bubbles:BUBBLES,balance:BALANCE,finishesOn:FINISH_ON,quality:QUALITY,world:WORLDS,
+  climate:CLIMATES,vintage:VINTAGES,winemaking:WINEMAKING,palateOnly:PALATE_ONLY};
+function optLabel(table,val){
+  for(var i=0;i<table.length;i++)if(table[i][0]===val)return table[i][1];
+  return String(val);
+}
+function fieldLabel(k){return FIELD_LABEL[k]||k;}
+function fieldValueText(k,v){
+  if(v==null||v==='')return '';
+  if(k==='aromas'||k==='palateConfirm')
+    return Object.keys(v).filter(function(x){return v[x];}).map(aromaLabel).join(', ');
+  if(k==='hue')return HUE_INDEX[v]?HUE_INDEX[v].name:String(v);
+  if(FIELD_SCALE[k]&&typeof v==='number')return scaleLabel(FIELD_SCALE[k],v);
+  var tbl=FIELD_OPTS[k];
+  if(Array.isArray(v))return v.map(function(x){
+    if(AROMA[x])return aromaLabel(x);
+    if(tbl)return optLabel(tbl,x);
+    return String(x);}).join(', ');
+  if(tbl)return optLabel(tbl,v);
+  return String(v);
+}
 </script>
 <script>
 "use strict";
@@ -3120,16 +3166,14 @@ function stepSight(c){
   var types=WINE_TYPES.filter(function(t){return S.settings.extraTypes||CORE_TYPES.indexOf(t[0])>=0;});
   singleField(c,'Wine type',null,'wineType',types,function(){
     if(o.hue&&HUE_INDEX[o.hue]&&o.wineType&&HUE_INDEX[o.hue].fam!==o.wineType)o.hue=null;});
-  singleField(c,'Clarity',null,'clarity',[['clear','clear'],['hazy','hazy']]);
+  singleField(c,'Clarity',null,'clarity',CLARITY);
   scaleField(c,'Concentration','depth of the core','concentration','concentration');
   hueField(c);
-  singleField(c,'Rim variation','a wide watery rim on a red is an age or dilution tell','rim',
-    [['none','none'],['slight','slight'],['pronounced','pronounced']]);
-  singleField(c,'Tears / legs',null,'legs',[['light','light legs'],['medium','medium legs'],['heavy','heavy legs']]);
+  singleField(c,'Rim variation','a wide watery rim on a red is an age or dilution tell','rim',RIM);
+  singleField(c,'Tears / legs',null,'legs',LEGS);
   if(o.wineType!=='white')
-    singleField(c,'Gum staining',null,'gumStain',[['yes','staining'],['no','none']]);
-  singleField(c,'Bubbles, sediment, gas',null,'bubbles',
-    [['none','none'],['petillance','pétillance'],['fine-sediment','fine sediment'],['heavy-sediment','heavy sediment']]);
+    singleField(c,'Gum staining',null,'gumStain',GUMSTAIN);
+  singleField(c,'Bubbles, sediment, gas',null,'bubbles',BUBBLES);
   stepFooter(c,'Nose →');
 }
 /* ---------------------------------------------------------------- NOSE - */
@@ -4046,21 +4090,16 @@ function openSession(h){
       h.result.top.forEach(function(t,i){sh.appendChild(rankCard(t,i));});
     }
     sh.appendChild(el('h3',null,'The grid you recorded'));
-    var o=h.obs||{},tb=el('table','tbl');
+    var o=h.obs||{},tb=el('table','tbl'),shown=0;
     GRID_FIELDS.forEach(function(f){
       var k=f[1];if(!answered(o,k))return;
-      var v=o[k],txt;
-      if(k==='aromas'||k==='palateConfirm')txt=Object.keys(v).map(aromaLabel).join(', ');
-      else if(Array.isArray(v))txt=v.map(function(x){return AROMA[x]?aromaLabel(x):x;}).join(', ');
-      else if(SCALES[k])txt=scaleLabel(k,v);
-      else if(k==='hue')txt=HUE_INDEX[v]?HUE_INDEX[v].name:v;
-      else if(k==='concentration'||k==='noseIntensity'||k==='flavorIntensity')
-        txt=scaleLabel(k==='concentration'?'concentration':'intensity',v);
-      else txt=String(v);
-      var tr=el('tr');tr.appendChild(el('th',null,k));tr.appendChild(el('td',null,txt));
-      tb.appendChild(tr);
+      var tr=el('tr');
+      tr.appendChild(el('th',null,fieldLabel(k)));
+      tr.appendChild(el('td',null,fieldValueText(k,o[k])));
+      tb.appendChild(tr);shown++;
     });
-    sh.appendChild(tb);
+    if(shown)sh.appendChild(tb);
+    else sh.appendChild(el('p','muted small','Nothing was recorded on the grid for this session.'));
   });
 }
 function exportJSON(){
