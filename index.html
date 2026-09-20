@@ -2445,6 +2445,20 @@ function normMarkers(list){
     return {note:m.note,w:m.w||1,ageGated:m.ageGated||0};
   });
 }
+/* Two structural vetoes on the same scale (say concentration>=5 and >=6)
+   would stack their multiplicative penalties. Keep only the broadest.   */
+function dedupeVetoes(list){
+  var out=[],seen={},struct={};
+  uniq(list).forEach(function(v){
+    var m=/^(\w+)(>=|<=)([1-6])$/.exec(v);
+    if(!m){if(!seen[v]){seen[v]=1;out.push(v);}return;}
+    var k=m[1]+m[2],n=+m[3];
+    if(struct[k]==null)struct[k]=n;
+    else struct[k]=(m[2]==='>=')?Math.min(struct[k],n):Math.max(struct[k],n);
+  });
+  Object.keys(struct).forEach(function(k){out.push(k+struct[k]);});
+  return out;
+}
 function mergeMarkers(base,extra){
   var out={},order=[];
   base.concat(extra).forEach(function(m){if(!out[m.note])order.push(m.note);out[m.note]=m;});
@@ -2466,7 +2480,7 @@ var GRAPES={},CANDIDATES=[],CAND_BY_ID={};
         ranges:Object.assign({},g.ranges,r.ranges||{}),
         hues:r.hues||g.hues||[],
         markers:mergeMarkers(g.markerObjs,normMarkers(r.markers)),
-        vetoes:uniq((g.vetoes||[]).concat(r.vetoes||[])),
+        vetoes:dedupeVetoes((g.vetoes||[]).concat(r.vetoes||[])),
         winemaking:r.winemaking||[],
         texture:r.texture||g.texture||[],
         producers:r.producers||g.producers||[],
