@@ -145,6 +145,18 @@ details.grp[open]>summary::before{transform:rotate(90deg)}
 details.grp>summary .cnt{margin-left:auto;font-size:.78rem;color:#fff;background:var(--accent);border-radius:999px;padding:2px 9px;min-width:24px;text-align:center}
 details.grp>summary .cnt[data-n="0"]{background:transparent;color:var(--txt3)}
 details.grp .grpbody{padding:0 12px 12px}
+/* aroma search — sticks under the app bar so it stays reachable while you
+   scroll a long list one-handed */
+.asearch{position:sticky;top:var(--appbar-h,60px);z-index:15;background:var(--panel);
+  padding:8px 0 10px;margin:0 0 4px;border-bottom:1px solid var(--line)}
+.asearch .inp{min-height:46px}
+.asearch .srow{display:flex;gap:8px;align-items:center;margin-top:8px}
+.asearch .srow .btn{flex:none}
+.hitmeta{font-size:.76rem;color:var(--txt3);margin:8px 0 6px}
+.picked{border:1px solid var(--line);border-radius:12px;background:var(--panel2);
+  padding:10px 12px;margin:0 0 10px}
+.picked .phead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.picked .phead b{font-size:.74rem;letter-spacing:.07em;text-transform:uppercase;color:var(--txt3)}
 
 /* range bars */
 .bar{margin:8px 0 12px}
@@ -3066,28 +3078,153 @@ function hueField(parent){
   });
   parent.appendChild(f);
 }
+/* Update the step counter in place. Toggling an aroma must not re-render
+   the whole view, or the search box loses its text and your focus.    */
+function refreshGridCounter(){
+  var c=gridCount();
+  var lab=document.querySelector('#view-taste .counter');
+  if(lab)lab.textContent=c.n+' of '+c.total+' observations recorded';
+  var bar=document.querySelector('#view-taste .progress i');
+  if(bar)bar.style.width=Math.round(c.n/c.total*100)+'%';
+}
 function aromaGroups(parent,key,compact){
   var o=sess().obs;o[key]=o[key]||{};
+  S.ui=S.ui||{};S.ui.aromaQuery=S.ui.aromaQuery||{};S.ui.openGroups=S.ui.openGroups||{};
+  var groups=AROMA_GROUPS.filter(function(g){return g.id!=='condition';});
+  var counts={};               /* group id -> its count badge element */
+  var chipsFor={};             /* aroma id -> every chip showing it    */
   var wrap=el('div');
-  AROMA_GROUPS.forEach(function(g){
-    /* fruit condition has its own dedicated field on the nose step */
-    if(g.id==='condition')return;
-    var n=g.items.filter(function(i){return o[key][i.id];}).length;
+
+  function isOn(id){return !!o[key][id];}
+  function setOn(id,on){
+    if(on)o[key][id]=true;else delete o[key][id];
+    (chipsFor[id]||[]).forEach(function(b){b.setAttribute('aria-pressed',on?'true':'false');});
+    groups.forEach(function(g){
+      if(!counts[g.id])return;
+      var n=g.items.filter(function(i){return isOn(i.id);}).length;
+      counts[g.id].textContent=String(n);counts[g.id].setAttribute('data-n',String(n));
+    });
+    saveState();refreshGridCounter();drawPicked();
+  }
+  function aChip(it,cls){
+    var b=chip(aromaLabel(it.id),isOn(it.id),function(){setOn(it.id,!isOn(it.id));},
+      (cls||'sm')+(it.tell&&S.settings.showTells?' tell':''));
+    (chipsFor[it.id]=chipsFor[it.id]||[]).push(b);
+    return b;
+  }
+
+  /* ---- search --------------------------------------------------------- */
+  var sb=el('div','asearch');
+  var inp=el('input','inp');inp.type='search';inp.id='aq-'+key;
+  inp.placeholder='Search all '+AROMA_LIST.length+' aromas…';
+  inp.value=S.ui.aromaQuery[key]||'';
+  inp.setAttribute('aria-label','Search aromas');
+  inp.setAttribute('autocomplete','off');
+  sb.appendChild(inp);
+  wrap.appendChild(sb);
+
+  /* ---- what you have already picked ----------------------------------- */
+  var picked=el('div');wrap.appendChild(picked);
+  function drawPicked(){
+    picked.innerHTML='';
+    var ids=[];
+    groups.forEach(function(g){g.items.forEach(function(i){if(isOn(i.id))ids.push(i);});});
+    if(!ids.length)return;
+    var box=el('div','picked');
+    var head=el('div','phead');
+    head.appendChild(el('b',null,'Selected · '+ids.length));
+    var clr=el('button','btn sm ghost','Clear all');
+    clr.onclick=function(){ids.forEach(function(i){setOn(i.id,false);});};
+    head.appendChild(clr);box.appendChild(head);
+    var row=chipRow();
+    ids.forEach(function(i){row.appendChild(aChip(i));});
+    box.appendChild(row);picked.appendChild(box);
+  }
+
+  /* ---- palate confirmations start from what you found on the nose ----- */
+  if(key==='palateConfirm'){
+    var nose=groups.reduce(function(a,g){
+      return a.concat(g.items.filter(function(i){return (o.aromas||{})[i.id];}));},[]);
+    if(nose.length){
+      var nb=el('div','picked');nb.style.borderLeft='3px solid var(--accent2)';
+      var nh=el('div','phead');
+      nh.appendChild(el('b',null,'From your nose notes · '+nose.length));
+      var all=el('button','btn sm ghost','Mark all');
+      all.onclick=function(){nose.forEach(function(i){setOn(i.id,true);});};
+      nh.appendChild(all);nb.appendChild(nh);
+      var nr=chipRow();
+      nose.forEach(function(i){nr.appendChild(aChip(i));});
+      nb.appendChild(nr);
+      nb.appendChild(el('div','tiny dim','Tap the ones that carried through to the palate.'));
+      wrap.appendChild(nb);
+    }
+  }
+
+  /* ---- results (while searching) and the accordion (while not) -------- */
+  var results=el('div');wrap.appendChild(results);
+  var acc=el('div');wrap.appendChild(acc);
+
+  groups.forEach(function(g){
+    var n=g.items.filter(function(i){return isOn(i.id);}).length;
     var d=el('details','grp');
-    if(n>0)d.open=true;
+    d.open=n>0||!!S.ui.openGroups[key+':'+g.id];
     var sm=el('summary');
     sm.appendChild(el('span',null,g.name.replace(/&amp;/g,'&')));
     var cnt=el('span','cnt',String(n));cnt.setAttribute('data-n',String(n));
-    sm.appendChild(cnt);d.appendChild(sm);
+    counts[g.id]=cnt;sm.appendChild(cnt);d.appendChild(sm);
+    /* remember what you opened, so tapping a chip elsewhere does not
+       collapse the group you were reading */
+    d.addEventListener('toggle',function(){S.ui.openGroups[key+':'+g.id]=d.open;});
     var body=el('div','grpbody'),row=chipRow();
-    g.items.forEach(function(it){
-      row.appendChild(chip(aromaLabel(it.id),!!o[key][it.id],function(){
-        if(o[key][it.id])delete o[key][it.id];else o[key][it.id]=true;
-        saveState();renderTaste();
-      },'sm'+(it.tell&&S.settings.showTells?' tell':'')));
-    });
-    body.appendChild(row);d.appendChild(body);wrap.appendChild(d);
+    g.items.forEach(function(it){row.appendChild(aChip(it));});
+    body.appendChild(row);d.appendChild(body);acc.appendChild(d);
   });
+
+  function drawResults(){
+    var q=(S.ui.aromaQuery[key]||'').trim().toLowerCase();
+    results.innerHTML='';
+    acc.style.display=q?'none':'';
+    if(!q)return;
+    var hits=[],where={};
+    groups.forEach(function(g){
+      var gname=g.name.replace(/&amp;/g,'&').toLowerCase();
+      g.items.forEach(function(it){
+        if(aromaLabel(it.id).toLowerCase().indexOf(q)>=0||
+           it.id.indexOf(q)>=0||gname.indexOf(q)>=0){
+          hits.push(it);where[g.id]=g.name.replace(/&amp;/g,'&');
+        }
+      });
+    });
+    if(!hits.length){
+      results.appendChild(el('div','empty','Nothing matches “'+inp.value.trim()+'”.'));
+      return;
+    }
+    results.appendChild(el('div','hitmeta',hits.length+' match'+(hits.length===1?'':'es')+
+      ' in '+listSentence(Object.keys(where).map(function(k){return where[k];}))));
+    var row=chipRow();
+    hits.forEach(function(it){row.appendChild(aChip(it));});
+    results.appendChild(row);
+  }
+
+  var clearBtn=null;
+  function syncClear(){
+    var q=(S.ui.aromaQuery[key]||'').trim();
+    if(q&&!clearBtn){
+      var r=el('div','srow');
+      clearBtn=el('button','btn sm ghost','Clear search');
+      clearBtn.onclick=function(){
+        S.ui.aromaQuery[key]='';inp.value='';drawResults();syncClear();inp.focus();};
+      r.appendChild(clearBtn);r.appendChild(el('span','tiny dim','showing matches across every category'));
+      sb.appendChild(r);
+    }else if(!q&&clearBtn){
+      sb.removeChild(clearBtn.parentNode);clearBtn=null;
+    }
+  }
+  inp.addEventListener('input',function(){
+    S.ui.aromaQuery[key]=inp.value;drawResults();syncClear();});
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter')e.preventDefault();});
+
+  drawPicked();drawResults();syncClear();
   parent.appendChild(wrap);
 }
 /* labelled segmented bar: expected band + where the taster's call sits */
@@ -3258,7 +3395,7 @@ function stepNose(c){
   c.appendChild(el('h2',null,'Nose'));
   c.appendChild(el('p','muted small','Select as many as you find. Chips marked ◆ are diagnostic tells and carry extra weight.'));
   multiField(c,'Fruit condition',null,'condition',AROMA_GROUPS[0].items.map(function(i){return [i.id,i.label];}));
-  var f=fieldBox('Aromas','group by group — tap to expand');
+  var f=fieldBox('Aromas','search, or open a category');
   c.appendChild(f);aromaGroups(c,'aromas',false);
   scaleField(c,'Aromatic intensity',null,'noseIntensity','intensity');
   stepFooter(c,'Palate →');
@@ -3284,7 +3421,7 @@ function stepPalate(c){
   scaleField(c,'Finish length',null,'finish','finish');
   c.appendChild(el('hr','sep'));
   c.appendChild(el('h3',null,'Palate confirmations'));
-  c.appendChild(el('p','muted small','Which of the aromas actually carried onto the palate?'));
+  c.appendChild(el('p','muted small','Which of the aromas actually carried onto the palate? Your nose notes are listed first — or search.'));
   aromaGroups(c,'palateConfirm',true);
   multiField(c,'Palate-only descriptors',null,'palateOnly',PALATE_ONLY);
   c.appendChild(el('hr','sep'));
@@ -4796,6 +4933,12 @@ function settingsModal(){
 function boot(){
   loadState();
   applyTheme();
+  (function(){
+    var bar=document.querySelector('.appbar');
+    function sync(){if(bar)document.documentElement.style
+      .setProperty('--appbar-h',bar.offsetHeight+'px');}
+    sync();window.addEventListener('resize',sync);
+  })();
   Array.prototype.forEach.call(document.querySelectorAll('.tabbar button'),function(b){
     b.onclick=function(){setView(b.dataset.view);};
   });
