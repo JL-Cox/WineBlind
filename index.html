@@ -2828,7 +2828,7 @@ var storage=(function(){
 })();
 var S={
   theme:'dark',
-  settings:{extraTypes:false,tanninOnWhites:false,showTells:true},
+  settings:{extraTypes:false,tanninOnWhites:false,showTells:true,matchThreshold:80},
   session:null,
   history:[],
   view:'taste',
@@ -3088,6 +3088,14 @@ function renderTaste(){
     var codexBtn=el('button','btn sm ghost','Open Codex (logs a peek)');
     codexBtn.onclick=function(){
       s.peeked=true;saveState();toast('Peeking — this session will be flagged.');setView('codex');};
+    var recallBtn=el('button','btn sm ghost','Tasted this before? (logs a peek)');
+    recallBtn.onclick=function(){
+      s.peeked=true;saveState();renderTaste();
+      openModal('Your past notes',function(sh){
+        sh.appendChild(el('p','muted small','Checking the grid so far against sessions where you recorded the bottle. This session is now flagged as peeked.'));
+        similarPanel(sh,s.obs,{excludeId:s.id,limit:8});
+      });
+    };
     var reset=el('button','btn sm ghost','Abandon session');
     reset.onclick=function(){
       openModal('Abandon this session?',function(sh){
@@ -3099,7 +3107,8 @@ function renderTaste(){
         r.appendChild(no);r.appendChild(yes);sh.appendChild(r);
       });
     };
-    tools.appendChild(codexBtn);tools.appendChild(reset);root.appendChild(tools);
+    tools.appendChild(codexBtn);tools.appendChild(recallBtn);tools.appendChild(reset);
+    root.appendChild(tools);
   }
 }
 
@@ -3491,17 +3500,43 @@ function stepReveal(c){
   }
   c.appendChild(el('hr','sep'));
 
+  /* have I described a wine like this before? */
+  var chosen={candId:null,vintage:null};
+  function adopt(h){
+    /* adopting a match names the WINE. The occasion note and the vintage
+       belong to this bottle, so they come from this screen, not that one. */
+    var nEl=$('bottleNote'),a=CAND_BY_ID[h.actual];
+    s.actual=h.actual;s.actualVintage=chosen.vintage||null;
+    if(nEl)s.note=nEl.value.trim();
+    s.scored=slimScore(scoreGuess({candId:s.guess.candId,vintage:s.guess.vintage,
+      actualVintage:s.actualVintage},s.actual));
+    saveState();recordHistory();renderTaste();
+    toast('Recorded as '+(a?a.grape+' — '+a.region:'that wine')+'.');
+  }
+  if(s.mode!=='practice')
+    similarPanel(c,s.obs,{excludeId:s.id,onUse:s.scored?null:adopt});
+
   /* the bottle */
   var act=el('div','card flat');
   act.appendChild(el('h3',null,'What was it actually?'));
+  function noteField(){
+    act.appendChild(el('div','tiny dim','LABEL NOTE (OPTIONAL)'));
+    var n=el('input','inp');n.id='bottleNote';n.type='text';n.value=s.note||'';
+    n.placeholder='Producer, vintage, whose cellar — anything to recognise it later';
+    n.setAttribute('aria-label','Label note');
+    n.onchange=function(){s.note=n.value.trim();saveState();recordHistory();};
+    act.appendChild(n);
+  }
   if(s.scored){
     renderScoreCard(act,s.scored);
+    act.appendChild(el('hr','sep'));
+    noteField();
   }else if(s.mode==='practice'&&s.practiceWine){
     act.appendChild(el('p','muted small','Practice wines score themselves.'));
   }else{
-    act.appendChild(el('p','muted small','Enter the bottle to score this session. Skip it and the session is still logged, just unscored.'));
+    act.appendChild(el('p','muted small','Enter the bottle to score this session, and so that a future grid like this one can find it. Skip it and the session is still logged, just unscored and invisible to recall.'));
+    noteField();
     var vsel=el('div');
-    var chosen={candId:null,vintage:null};
     var vr=chipRow();
     VINTAGES.forEach(function(v){
       vr.appendChild(chip(v[1],false,function(){
@@ -3514,8 +3549,10 @@ function stepReveal(c){
     act.appendChild(vr);
     act.appendChild(el('hr','sep'));
     winePicker(vsel,{onPick:function(cid){
+      var nEl=$('bottleNote');
       chosen.candId=cid;
       s.actual=cid;s.actualVintage=chosen.vintage;
+      if(nEl)s.note=nEl.value.trim();
       s.scored=slimScore(scoreGuess({candId:s.guess.candId,vintage:s.guess.vintage,
         actualVintage:chosen.vintage},cid));
       saveState();recordHistory();renderTaste();
@@ -3580,7 +3617,7 @@ function recordHistory(){
   var s=sess();
   var entry={id:s.id,ts:s.started,mode:s.mode,obs:s.obs,guess:s.guess,result:s.result,
     actual:s.actual,actualVintage:s.actualVintage,scored:s.scored,peeked:s.peeked,
-    flashcard:!!s.flashcard};
+    note:s.note||'',flashcard:!!s.flashcard};
   var i=-1;S.history.forEach(function(h,k){if(h.id===s.id)i=k;});
   if(i>=0)S.history[i]=entry;else S.history.push(entry);
   saveState();
@@ -3985,6 +4022,7 @@ function renderHistory(){
     l.appendChild(el('b',null,a?a.grape+' — '+a.region:(h.result&&h.result.top[0]?'unlabelled ('+h.result.top[0].grape+'?)':'unlabelled session')));
     l.appendChild(el('div','sub',fmtDate(h.ts)+' · '+h.mode+(h.flashcard?' · flashcard':'')+(h.peeked?' · peeked':'')));
     if(gsd)l.appendChild(el('div','sub','you said '+gsd.grape+(h.guess.skipped?' (skipped)':'')));
+    if(h.note)l.appendChild(el('div','sub','“'+h.note+'”'));
     top.appendChild(l);
     if(h.scored){
       var sv=el('div');sv.style.textAlign='right';
@@ -4001,6 +4039,7 @@ function renderHistory(){
 }
 function openSession(h){
   openModal('Session — '+fmtDate(h.ts),function(sh){
+    if(h.note)sh.appendChild(el('p','notice','“'+h.note+'”'));
     if(h.scored)renderScoreCard(sh,h.scored);
     if(h.result&&h.result.top){
       sh.appendChild(el('h3',null,'The app’s ranking'));
@@ -4073,6 +4112,203 @@ function importJSON(){
     };
     sh.appendChild(go);
   });
+}
+</script>
+<script>
+"use strict";
+/* ========================================= 9b. GRID RECALL ==============
+   "Have I described a wine like this before?"  Compares the current grid
+   against every past session where the bottle was recorded, and reports
+   the ones that match above a threshold the taster controls.
+
+   The comparison only looks at fields BOTH grids answered, which is the
+   same rule the inference engine uses: a field you skipped on either
+   occasion cannot make two notes look alike or unalike.               */
+
+var MIN_OVERLAP=5;      /* fewer shared fields than this and a % is noise */
+var AROMA_SIM_W=3.0;    /* aromas are the most distinctive thing in a note */
+var SIM_FIELDS=[
+ {k:'wineType',t:'cat',w:1.5,hard:true,label:'wine type'},
+ {k:'hue',t:'hue',w:1.2,label:'hue'},
+ {k:'concentration',t:'ord',scale:'concentration',w:1.0,label:'concentration'},
+ {k:'clarity',t:'cat',w:0.3,label:'clarity'},
+ {k:'rim',t:'cat',w:0.3,label:'rim'},
+ {k:'legs',t:'cat',w:0.3,label:'legs'},
+ {k:'gumStain',t:'cat',w:0.3,label:'gum staining'},
+ {k:'bubbles',t:'cat',w:0.3,label:'bubbles'},
+ {k:'noseIntensity',t:'ord',scale:'intensity',w:0.5,label:'aromatic intensity'},
+ {k:'sweetness',t:'ord',scale:'sweetness',w:1.0,label:'sweetness'},
+ {k:'acidity',t:'ord',scale:'acidity',w:1.2,label:'acidity'},
+ {k:'tannin',t:'ord',scale:'tannin',w:1.2,label:'tannin'},
+ {k:'alcohol',t:'ord',scale:'alcohol',w:1.0,label:'alcohol'},
+ {k:'body',t:'ord',scale:'body',w:1.0,label:'body'},
+ {k:'flavorIntensity',t:'ord',scale:'intensity',w:0.5,label:'flavour intensity'},
+ {k:'finish',t:'ord',scale:'finish',w:0.6,label:'finish'},
+ {k:'balance',t:'cat',w:0.3,label:'balance'},
+ {k:'finishesOn',t:'cat',w:0.3,label:'where it finishes'},
+ {k:'quality',t:'cat',w:0.3,label:'quality'},
+ {k:'world',t:'cat',w:0.5,label:'Old/New World'},
+ {k:'climate',t:'clim',w:0.5,label:'climate'},
+ {k:'vintage',t:'vint',w:0.5,label:'vintage range'},
+ {k:'condition',t:'set',w:0.8,label:'fruit condition'},
+ {k:'tanninTexture',t:'set',w:0.6,label:'tannin texture'},
+ {k:'mouthfeel',t:'set',w:0.6,label:'mouthfeel'},
+ {k:'palateOnly',t:'set',w:0.5,label:'palate descriptors'},
+ {k:'winemaking',t:'set',w:0.6,label:'winemaking'}
+];
+var VINT_ORDER=VINTAGES.map(function(v){return v[0];});
+
+function setOf(v){
+  var o={};
+  if(Array.isArray(v))v.forEach(function(k){o[k]=true;});
+  else if(v&&typeof v==='object')Object.keys(v).forEach(function(k){if(v[k])o[k]=true;});
+  return o;
+}
+function jaccard(a,b){
+  var ka=Object.keys(a),kb=Object.keys(b);
+  if(!ka.length&&!kb.length)return null;
+  var inter=ka.filter(function(k){return b[k];}).length;
+  var union=ka.length+kb.length-inter;
+  return {sim:union?inter/union:0,shared:ka.filter(function(k){return b[k];})};
+}
+function ordSim(a,b,scale){
+  var len=(SCALES[scale]||[]).length||6;
+  return 1-Math.abs(a-b)/(len-1);
+}
+/* 0-100 similarity between two recorded grids, plus what drove it. */
+function gridSimilarity(A,B){
+  if(!A||!B)return null;
+  var score=0,weight=0,overlap=0,agree=[],differ=[];
+  for(var i=0;i<SIM_FIELDS.length;i++){
+    var f=SIM_FIELDS[i],a=A[f.k],b=B[f.k],sim=null,sh=null;
+    if(f.t==='set'){
+      var sa=setOf(a),sb=setOf(b);
+      if(!Object.keys(sa).length||!Object.keys(sb).length)continue;
+      var j=jaccard(sa,sb);sim=j.sim;sh=j.shared;
+    }else{
+      if(a==null||a===''||b==null||b==='')continue;
+      if(f.t==='ord')sim=ordSim(a,b,f.scale);
+      else if(f.t==='hue'){
+        var ha=HUE_INDEX[a],hb=HUE_INDEX[b];
+        if(!ha||!hb)sim=a===b?1:0;
+        else if(ha.fam!==hb.fam)sim=0;
+        else sim=1-Math.abs(ha.i-hb.i)/Math.max(1,(HUES[ha.fam].length-1));
+      }
+      else if(f.t==='clim')sim=1-Math.abs((CLIMATE_ORD[a]||2)-(CLIMATE_ORD[b]||2))/2;
+      else if(f.t==='vint')sim=1-Math.abs(VINT_ORDER.indexOf(a)-VINT_ORDER.indexOf(b))/(VINT_ORDER.length-1);
+      else sim=a===b?1:0;
+      /* a red note and a white note are not versions of the same note */
+      if(f.hard&&sim===0)return {pct:0,overlap:0,agree:[],differ:[],blocked:f.label};
+    }
+    sim=clamp(sim,0,1);
+    score+=sim*f.w;weight+=f.w;overlap++;
+    if(sim>=0.999)agree.push(f.label);
+    else if(sim<=0.34)differ.push(f.label);
+  }
+  /* aromas: nose plus palate confirmations, compared as one set */
+  var aa=obsAromaSet(A),ab=obsAromaSet(B);
+  var shared=[];
+  if(Object.keys(aa).length&&Object.keys(ab).length){
+    var ja=jaccard(aa,ab);
+    score+=ja.sim*AROMA_SIM_W;weight+=AROMA_SIM_W;overlap++;
+    shared=ja.shared;
+    if(ja.sim>=0.6)agree.push('aromas');else if(ja.sim<=0.2)differ.push('aromas');
+  }
+  if(!weight)return null;
+  return {pct:Math.round(score/weight*100),overlap:overlap,
+    agree:agree,differ:differ,sharedAromas:shared};
+}
+/* Past sessions whose grid resembles this one. Practice drills are left
+   out on purpose: their grids are generated, not observed.            */
+function findSimilarSessions(obs,opts){
+  opts=opts||{};
+  var min=opts.threshold!=null?opts.threshold:matchThreshold();
+  var exclude=opts.excludeId||null;
+  var out=[],skippedUnlabelled=0,thin=0;
+  S.history.forEach(function(h){
+    if(!h||h.id===exclude)return;
+    if(h.mode==='practice')return;
+    if(!h.obs)return;
+    if(!h.actual&&!opts.includeUnlabelled){skippedUnlabelled++;return;}
+    var sim=gridSimilarity(obs,h.obs);
+    if(!sim||sim.blocked)return;
+    if(sim.overlap<MIN_OVERLAP){thin++;return;}
+    if(sim.pct<min)return;
+    out.push({entry:h,sim:sim});
+  });
+  out.sort(function(a,b){return b.sim.pct-a.sim.pct||b.entry.ts-a.entry.ts;});
+  return {matches:out,skippedUnlabelled:skippedUnlabelled,tooThin:thin,threshold:min};
+}
+function matchThreshold(){
+  var t=parseInt(S.settings.matchThreshold,10);
+  return isNaN(t)?80:clamp(t,30,99);
+}
+/* Shared renderer. `onUse` is offered when the taster can adopt a match
+   as this session's bottle.                                           */
+function similarPanel(parent,obs,opts){
+  opts=opts||{};
+  var res=findSimilarSessions(obs,opts);
+  var box=el('div','card flat');
+  box.appendChild(el('div','tiny dim','YOUR PAST NOTES'));
+  var head=el('div','spread');
+  head.appendChild(el('h3',null,res.matches.length?
+    (res.matches.length+' earlier note'+(res.matches.length===1?'':'s')+' like this one'):
+    'Nothing like this in your notes'));
+  head.appendChild(el('span','badge','≥ '+res.threshold+'%'));
+  box.appendChild(head);
+  if(!res.matches.length){
+    var why=[];
+    if(res.skippedUnlabelled)why.push(res.skippedUnlabelled+' past session'+
+      (res.skippedUnlabelled===1?'':'s')+' had no bottle recorded');
+    if(res.tooThin)why.push(res.tooThin+' had too few fields in common to compare');
+    box.appendChild(el('p','muted small',
+      'No past session matches this grid at '+res.threshold+'% or better.'+
+      (why.length?' ('+listSentence(why)+'.)':'')+
+      ' Lower the threshold in Settings if you want looser matches.'));
+    parent.appendChild(box);return res;
+  }
+  res.matches.slice(0,opts.limit||6).forEach(function(m){
+    var h=m.entry,a=h.actual?CAND_BY_ID[h.actual]:null;
+    var row=el('div','pit');row.style.borderLeftColor='var(--good)';
+    var top=el('div','spread');
+    var l=el('div');l.style.minWidth='0';
+    l.appendChild(el('b',null,a?a.grape+' — '+a.region:'Unlabelled session'));
+    l.appendChild(el('div','tiny dim',fmtDate(h.ts)+(h.peeked?' · peeked':'')));
+    top.appendChild(l);
+    var pc=el('div');pc.style.textAlign='right';
+    var n=el('b',null,m.sim.pct+'%');n.style.color='var(--good2)';n.style.fontSize='1.2rem';
+    pc.appendChild(n);
+    pc.appendChild(el('div','tiny dim',m.sim.overlap+' fields compared'));
+    top.appendChild(pc);
+    row.appendChild(top);
+    if(h.note)row.appendChild(el('p','small','“'+h.note+'”'));
+    if(m.sim.sharedAromas.length)
+      row.appendChild(el('p','tiny dim','Both times you noted '+
+        listSentence(m.sim.sharedAromas.slice(0,6).map(aromaLabel).map(function(x){
+          return x.toLowerCase();}))+'.'));
+    if(m.sim.differ.length)
+      row.appendChild(el('p','tiny dim','Differs on '+listSentence(m.sim.differ.slice(0,4))+'.'));
+    var acts=el('div','row');
+    if(opts.onUse&&a){
+      var use=el('button','btn sm','Use as the bottle');
+      use.onclick=function(){opts.onUse(h);};
+      acts.appendChild(use);
+    }
+    var open=el('button','btn sm ghost','Open session');
+    open.onclick=function(){openSession(h);};
+    acts.appendChild(open);
+    if(a){
+      var cx=el('button','btn sm ghost','Codex');
+      cx.onclick=function(){closeModal();setView('codex',{grapeId:a.grapeId,regionId:a.regionId});};
+      acts.appendChild(cx);
+    }
+    row.appendChild(acts);
+    box.appendChild(row);
+  });
+  if(res.matches.length>(opts.limit||6))
+    box.appendChild(el('p','tiny dim','and '+(res.matches.length-(opts.limit||6))+' more below the top six.'));
+  parent.appendChild(box);
+  return res;
 }
 </script>
 <script>
@@ -4235,6 +4471,19 @@ function settingsModal(){
     toggle('Rosé, sparkling and fortified','adds them to the grid and the engine pool','extraTypes',function(){renderTaste();});
     toggle('Allow tannin on whites','for skin-contact and orange wines','tanninOnWhites',function(){renderTaste();});
     toggle('Highlight diagnostic tells','the ◆ accent on high-signal aroma chips','showTells',function(){renderTaste();});
+    var mw=el('div','field'),ml=el('div','flabel');
+    ml.appendChild(el('b',null,'Recall threshold'));
+    ml.appendChild(el('span','hint','how alike two grids must be before a past note is listed'));
+    mw.appendChild(ml);
+    var mr=chipRow();
+    [50,60,70,80,90,95].forEach(function(v){
+      mr.appendChild(chip(v+'%',matchThreshold()===v,function(){
+        S.settings.matchThreshold=v;saveState();closeModal();settingsModal();},'scale'));
+    });
+    mw.appendChild(mr);
+    mw.appendChild(el('div','tiny dim','Only fields you filled in on both occasions are compared, and at least '+
+      MIN_OVERLAP+' of them must overlap. Practice drills are excluded — their grids are generated, not observed.'));
+    sh.appendChild(mw);
     sh.appendChild(el('hr','sep'));
     var info=el('div','muted small');
     info.textContent=WINE_DB.length+' grapes · '+CANDIDATES.length+' regional expressions · '+

@@ -14,7 +14,24 @@ Open it from `file://` and it works offline. Data lives in `localStorage`.
 3. The app then reveals its ranked top five, with the specific observations
    that pushed each candidate up, the ones that argue against it, and the one
    thing to check next time to separate #1 from #2.
-4. Enter the bottle to score the session. Everything is logged to History.
+4. Enter the bottle — plus an optional label note — to score the session.
+   Everything is logged to History.
+5. Next time you record a grid like this one, the reveal lists the past
+   sessions it resembles, with the bottle you recorded and how the two notes
+   agree and differ. One tap adopts a match as this session's bottle.
+
+## Recall
+
+Similarity compares only the fields **both** grids answered — the same rule the
+inference engine uses, so a field skipped on either occasion can neither create
+nor destroy a match. Ordinal scales score by distance, hues by position on the
+colour axis, aroma sets by overlap; a red note and a white note never match.
+At least five fields must overlap before a percentage is reported at all.
+
+The threshold defaults to **80%** and is changeable in Settings (50–95%).
+Practice drills are excluded, because their grids are generated rather than
+observed. Recall is also available mid-tasting, behind the same "peeked" flag
+as the Codex — the reveal never leaks into the guess screen.
 
 ## Sections
 
@@ -24,8 +41,8 @@ Open it from `file://` and it works offline. Data lives in `localStorage`.
   hue swatches, labelled range bars, ageing notes, benchmark producers, and a
   Pitfalls panel of the wines it gets mistaken for. Plus a cross-cutting
   pitfalls page for the traps that aren't varietal at all.
-- **History** — session log, accuracy trend, accuracy by grape, your most
-  confused pairs, JSON export/import.
+- **History** — session log with your label notes, accuracy trend, accuracy by
+  grape, your most confused pairs, JSON export/import.
 - **Practice** — the reverse drill: the app describes a wine, you name it.
   Weighted toward grapes you have historically missed. Includes a flashcard
   sub-mode showing only the diagnostic tells.
