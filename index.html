@@ -234,6 +234,19 @@ select.inp{-webkit-appearance:none;appearance:none;background-image:linear-gradi
 .tbl{width:100%;border-collapse:collapse;font-size:.88rem}
 .tbl th,.tbl td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 .tbl th{color:var(--txt3);font-size:.76rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.logrow{border:1px solid var(--line);border-radius:12px;background:var(--panel2);
+  padding:11px 12px;margin:0 0 8px}
+.logrow.flagged{border-left:3px solid var(--tell)}
+.logrow .lhead{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.logrow .when{font-size:.74rem;color:var(--txt3);letter-spacing:.03em}
+.logline{display:flex;gap:8px;font-size:.88rem;line-height:1.45;padding:3px 0}
+.logline b{flex:none;width:34px;color:var(--txt3);font-weight:600;font-size:.74rem;
+  letter-spacing:.06em;text-transform:uppercase;padding-top:2px}
+.logline span{min-width:0}
+.logline.hit span{color:var(--good2)}
+.logline.miss span{color:var(--bad)}
+.logscore{text-align:right;font-variant-numeric:tabular-nums;flex:none}
+.logscore b{font-size:1.3rem;line-height:1}
 .spark{display:flex;align-items:flex-end;gap:3px;height:56px;padding:4px 0}
 .spark i{flex:1;min-width:4px;background:var(--accent);border-radius:3px 3px 0 0;display:block}
 .score{font-size:2.6rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
@@ -304,7 +317,7 @@ function listSentence(a){a=a.filter(Boolean);if(a.length<2)return a[0]||'';if(a.
 /* Ordinal scales. Stored values are 1-based indices into these arrays, so a
    wine's range [1,3] on `concentration` means pale .. medium.            */
 var SCALES={
-  concentration:['pale','medium−','medium','medium+','deep','concentration>=6'],
+  concentration:['pale','medium−','medium','medium+','deep','opaque'],
   intensity:['light','medium−','medium','medium+','pronounced'],
   sweetness:['bone dry','dry','off-dry','medium sweet','sweet','luscious'],
   acidity:['low','medium−','medium','medium+','high','searing'],
@@ -366,32 +379,32 @@ var AROMA_GROUPS=[
    'Black cherry|black-cherry','Cassis / black currant|cassis','Blackberry','Bramble','Blueberry','Boysenberry',
    'Black plum|black-plum','Fig','Black raisin|black-raisin','Prune']},
  {id:'citrus',name:'Citrus',chips:[
-   'Lime','Lemon','Grapefruit','Orange peel|orange-peel','Tangerine','Preserved lemon|preserved-lemon']},
+   'Lime','Lemon','Grapefruit','Orange peel|orange-peel','Tangerine','Bergamot','Preserved lemon|preserved-lemon']},
  {id:'orchard',name:'Orchard &amp; stone fruit',chips:[
    'Green apple|green-apple','Red apple|red-apple','Bruised apple|bruised-apple','Pear','Quince',
    'White peach|white-peach','Yellow peach|yellow-peach','Apricot','Nectarine']},
  {id:'tropical',name:'Tropical',chips:[
    'Honeydew','Cantaloupe','Pineapple','Mango','Papaya','Guava','Passionfruit!','Lychee!','Banana!']},
  {id:'floral',name:'Floral',chips:[
-   'Violet!','Rose!','Potpourri','Lavender','Acacia','Honeysuckle','Orange blossom|orange-blossom',
+   'Violet','Rose!','Potpourri','Lavender','Acacia','Honeysuckle','Orange blossom|orange-blossom',
    'Elderflower','Chamomile','Geranium','Jasmine','Iris']},
  {id:'herbal',name:'Herbal &amp; vegetal',chips:[
    'Mint','Eucalyptus!','Bay leaf|bay-leaf','Dried herbs / garrigue|garrigue','Fennel','Sage',
-   'Green bell pepper|bell-pepper!','Jalape&ntilde;o|jalapeno!','Tomato leaf|tomato-leaf!','Asparagus',
-   'Green olive|green-olive','Black olive|black-olive!','Tobacco leaf|tobacco','Stemmy / whole-cluster|stems']},
+   'Green bell pepper|bell-pepper!','Jalape&ntilde;o|jalapeno!','Tomato leaf|tomato-leaf!','Sun-dried tomato|sun-dried-tomato!','Asparagus',
+   'Green olive|green-olive!','Black olive|black-olive!','Tobacco leaf|tobacco','Stemmy / whole-cluster|stems']},
  {id:'spice',name:'Spice',chips:[
    'Black pepper|black-pepper','White pepper|white-pepper!','Clove','Cinnamon','Nutmeg',
-   'Anise / licorice|anise','Allspice','Cardamom','Juniper']},
+   'Anise / licorice|anise','Green peppercorn|green-peppercorn','Allspice','Cardamom','Juniper']},
  {id:'oak',name:'Oak &amp; wood',chips:[
    'Vanilla','Coconut!','Dill!','Cedar','Cigar box|cigar-box','Toast','Smoke','Char','Mocha',
    'Baking spice|baking-spice','Sawdust / green wood|green-wood']},
  {id:'earth',name:'Earth &amp; mineral',chips:[
    'Wet stone|wet-stone','Crushed rock|crushed-rock','Chalk','Flint!','Slate','Gravel',
-   'Saline / sea spray|saline!','Iodine!','Forest floor|forest-floor','Mushroom','Truffle!','Potting soil|potting-soil',
-   'Dried leaves|dried-leaves','Tar!','Graphite / pencil lead|graphite','Volcanic ash|volcanic-ash','Clay / iron|iron-earth']},
+   'Saline / sea spray|saline','Iodine!','Forest floor|forest-floor','Mushroom','Truffle!','Potting soil|potting-soil',
+   'Dried leaves|dried-leaves','Tar!','Graphite / pencil lead|graphite','Volcanic ash|volcanic-ash!','Clay / iron|iron-earth']},
  {id:'animal',name:'Animal &amp; ferment',chips:[
-   'Leather','Cured meat|cured-meat','Blood / iron|blood','Game','Bacon fat|bacon-fat','Barnyard!',
-   'Band-aid (brett)|brett!','Butter','Cream','Yogurt','Cheese rind|cheese-rind','Bread dough|bread-dough',
+   'Leather','Cured meat|cured-meat','Blood / iron|blood','Soy / umami|soy!','Game','Bacon fat|bacon-fat','Barnyard!',
+   'Band-aid (brett)|brett','Butter','Cream','Yogurt','Cheese rind|cheese-rind','Bread dough|bread-dough',
    'Brioche','Yeast / lees|lees','Nuts','Almond skin|almond-skin']},
  {id:'markers',name:'Other markers',chips:[
    'Petrol / kerosene|petrol!','Lanolin / wool|lanolin!','Honey','Beeswax','Candied peel|candied-peel',
@@ -518,12 +531,12 @@ var WINE_DB=[
    ranges:{concentration:[5,6],acidity:[3,4],tannin:[5,6],alcohol:[4,5],body:[5,5]},
    hues:['ruby-purple','ruby'],
    markers:[['cassis',3],['blackberry',2],['black-plum',2],['mocha',2],['vanilla',2],['toast',2],['mint',2],['eucalyptus',1],['jammy',1],['ripe',2]],
-   winemaking:['new-oak'],producers:['Ridge Monte Bello','Spottswoode','Dunn Howell Mountain'],
+   winemaking:['new-oak'],producers:['Spottswoode','Dunn Howell Mountain','Corison'],
    diffs:['Opaque to the rim, purple-tinged, rarely garnet under 12 years','Mocha, sweet toast and vanilla from high new French oak','Alcohol 14.5%+; the finish carries warmth','Tannin is plush and sweet rather than austere']},
   {id:'left-bank',name:'Bordeaux Left Bank',place:'Médoc / Pessac-Léognan, France',country:'France',world:'old',climate:'moderate',flight:true,
    identity:'Cooler, leaner, more mineral — cassis with graphite, cedar and a pyrazine ghost, tannin dry and architectural.',
    ranges:{concentration:[4,5],acidity:[4,5],tannin:[5,6],alcohol:[3,4],body:[4,4]},
-   markers:[['cassis',3],['graphite',3],['cedar',3],['bell-pepper',2],['tobacco',2],['iron-earth',2],['forest-floor',1,10],['cigar-box',2,10],['red-currant',1]],
+   markers:[['cassis',3],['graphite',3],['gravel',2],['cedar',3],['bell-pepper',2],['tobacco',2],['iron-earth',2],['forest-floor',1,10],['cigar-box',2,10],['red-currant',1]],
    winemaking:['new-oak','neutral-oak'],producers:['Ch. Montrose','Ch. Léoville-Barton','Ch. Haut-Bailly'],
    diffs:['Medium+ rather than searing concentration — light shows through the core','Graphite and lead-pencil minerality in place of mocha','Alcohol 12.5–13.5%: the finish is dry and cool, not warm','Tannin is drier and more angular; the wine finishes on tannin and earth, not fruit']},
   {id:'coonawarra',name:'Coonawarra',place:'Coonawarra, South Australia',country:'Australia',world:'new',climate:'moderate',
@@ -590,17 +603,17 @@ var WINE_DB=[
  ranges:{concentration:[2,4],acidity:[4,5],tannin:[4,5],alcohol:[2,4],body:[3,4],finish:[2,3]},
  hues:['ruby-purple','ruby','ruby-garnet','garnet'],
  markers:[['red-currant',3],['raspberry',2],['bell-pepper',3],['tomato-leaf',2],['tobacco',3],['graphite',2],
-   ['violet',2],['bramble',2],['crushed-rock',2],['iron-earth',1],['black-plum',1],['cedar',1],['stems',1]],
+   ['violet',2],['bramble',2],['crushed-rock',2],['gravel',3],['iron-earth',1],['black-plum',1],['cedar',1],['stems',1]],
  texture:['fine-grained','dusty','grippy','angular'],
  tells:['Red currant and bell pepper over crushed gravel with medium concentration','Tobacco leaf and violet together','A leaner mid-palate than any other Bordeaux variety'],
  vetoes:['rose','coconut','lychee','concentration>=6','tannin<=1'],
  aging:{5:'Red fruit still crunchy; pyrazine at its loudest; tannin sinewy.',10:'Fruit dries into tobacco, leather and cedar; the green note softens to dried herb.',20:'Loire Franc from a good vintage turns to tobacco, dried rose and iron with fully resolved tannin.'},
- producers:['Charles Joguet','Olga Raffault','Ch. Cheval Blanc','Bedell'],
+ producers:['Charles Joguet','Olga Raffault','Ch. Cheval Blanc','Bernard Baudry'],
  pitfalls:[
   {with:'syrah',why:'Cool-climate Syrah and Loire Franc share a green-savoury axis: pepper, olive, herbs, medium colour, high acid.',
    sep:'Syrah green is peppercorn, olive and cured meat — a spice-and-charcuterie green. Franc green is pyrazine: bell pepper, tomato leaf, crushed stem. Syrah is darker and blacker-fruited with a smoother, more glycerol-rich texture; Franc is redder, leaner and gravellier.'},
   {with:'mencia',why:'Both mid-weight, floral, high-acid reds with a peppery-herbal edge and stony minerality.',
-   sep:'Mencía is more purple and more floral, with pomegranate and a slatey, almost saline finish and softer tannin; Franc has the distinct pyrazine and tobacco. If the green reads as bell pepper rather than herb, go Franc.'},
+   sep:'Both are green, but differently. Franc\u2019s green is pyrazine — bell pepper and tomato leaf — over red currant and gravel; Mencía\u2019s is cracked peppercorn and stem over blue fruit, with a slatey, faintly saline finish. Franc also carries tobacco, which Mencía does not.'},
   {with:'cabernet-sauvignon',why:'Parent and offspring, both pyrazine-carrying Bordeaux varieties.',
    sep:'Colour and density decide it: Franc is medium, Cabernet is deep-to-opaque. Franc’s fruit is red currant, Cabernet’s is cassis. Franc’s tannin is sinewy and drying but slight; Cabernet’s is broad and dusty.'},
   {with:'merlot',why:'Right Bank blends contain both, and Franc in a warm year can plump up.',
@@ -610,7 +623,7 @@ var WINE_DB=[
    identity:'The textbook: translucent ruby, crushed gravel, red currant, bell pepper and tobacco over high acid and slight tannin.',
    ranges:{concentration:[2,3],acidity:[4,5],tannin:[3,5],alcohol:[2,3],body:[2,3]},
    hues:['ruby-purple','ruby','ruby-garnet'],
-   markers:[['red-currant',3],['bell-pepper',3],['crushed-rock',3],['tobacco',3],['raspberry',2],['violet',2],['tomato-leaf',2],['graphite',2],['iron-earth',1]],
+   markers:[['red-currant',3],['bell-pepper',3],['gravel',3],['crushed-rock',3],['tobacco',3],['raspberry',2],['violet',2],['tomato-leaf',2],['graphite',2],['iron-earth',1]],
    winemaking:['neutral-oak','stainless'],producers:['Charles Joguet','Olga Raffault','Bernard Baudry'],
    diffs:['Lightest and highest-acid expression — 12–12.5% alcohol','Pyrazine is a feature, not a fault','Gravel and graphite minerality on the finish','No new oak: nothing sweet, nothing toasty']},
   {id:'right-bank-franc',name:'Right Bank (blend component)',place:'St-Émilion & Pomerol, France',country:'France',world:'old',climate:'moderate',
@@ -705,7 +718,7 @@ WINE_DB.push(
  identity:'Blackberry and olive wrapped in pepper, smoke and cured meat — deep colour, glycerol-rich texture, savoury finish.',
  ranges:{concentration:[4,6],acidity:[3,5],tannin:[4,5],alcohol:[3,5],body:[4,5],finish:[3,4]},
  hues:['purple','ruby-purple','ruby'],
- markers:[['blackberry',3],['black-olive',3],['white-pepper',3],['black-pepper',2],['cured-meat',3],['bacon-fat',2],
+ markers:[['blackberry',3],['black-olive',3],['black-pepper',3],['white-pepper',2],['cured-meat',3],['bacon-fat',2],
    ['violet',2],['blueberry',2],['smoke',2],['garrigue',2],['graphite',1],['leather',2,8],['iodine',1],['rubber',1],['game',2,8]],
  texture:['glycerol-rich','velvety','plush','grippy','silky'],
  tells:['Black olive tapenade and cracked pepper over blackberry','Cured-meat/bacon savouriness with no pyrazine','Deep purple-black colour with a supple, fleshy mid-palate'],
@@ -737,7 +750,7 @@ WINE_DB.push(
   {id:'cornas',name:'Cornas',place:'Northern Rhône, France',country:'France',world:'old',climate:'moderate',
    identity:'Wild and rustic: black fruit, iron, smoke and a chewy, farmyard-edged tannin.',
    ranges:{concentration:[5,6],acidity:[4,5],tannin:[5,6],alcohol:[3,4],body:[4,5]},
-   markers:[['blackberry',3],['blood',3],['smoke',3],['black-olive',2],['black-pepper',3],['game',2],['barnyard',1],['garrigue',1]],
+   markers:[['blackberry',3],['blood',3],['smoke',3],['black-olive',2],['black-pepper',3],['game',2],['barnyard',2],['brett',1],['green-peppercorn',2]],
    producers:['Thierry Allemand','Auguste Clape'],
    diffs:['Rawest and most savoury of the northern Rhône trio','Iron/blood note is a Cornas signature','Tannin is chewy and rustic rather than polished']},
   {id:'barossa',name:'Barossa Valley',place:'Barossa Valley, South Australia',country:'Australia',world:'new',climate:'warm',flight:true,
@@ -824,7 +837,8 @@ WINE_DB.push(
  ranges:{concentration:[1,3],acidity:[5,6],tannin:[5,6],alcohol:[3,5],body:[3,4],finish:[3,4]},
  hues:['ruby-garnet','garnet','garnet-tawny','brick'],
  markers:[['rose',3],['tar',3],['dried-cherry',3],['sour-cherry',2],['anise',2],['garrigue',2],['leather',2,8],
-   ['truffle',3,8],['mushroom',2,6],['potpourri',2],['dried-leaves',2,8],['camphor',1],['iron-earth',1],['cranberry',1]],
+   ['truffle',3,8],['mushroom',2,6],['potpourri',2],['dried-leaves',2,8],['camphor',1],['iron-earth',1],
+   ['cranberry',1],['violet',2]],
  texture:['drying','grippy','resinous','dusty','rustic'],
  tells:['Pale garnet colour with high tannin AND high acid — the signature mismatch','Rose petal and tar in the same breath','Alcohol 14%+ on a wine that looks like a light red'],
  vetoes:['purple','concentration>=6','bell-pepper','coconut','jammy','concentration>=5'],
@@ -849,7 +863,7 @@ WINE_DB.push(
   {id:'barbaresco',name:'Barbaresco',place:'Barbaresco, Piedmont, Italy',country:'Italy',world:'old',climate:'moderate',flight:true,
    identity:'Barolo’s more perfumed sibling — the same frame with more floral lift and slightly finer tannin.',
    ranges:{concentration:[1,3],acidity:[5,6],tannin:[5,6],alcohol:[3,4],body:[3,4]},
-   markers:[['rose',3],['dried-cherry',3],['tar',2],['potpourri',3],['truffle',2,8],['anise',2],['leather',2,8],['raspberry',1]],
+   markers:[['rose',3],['dried-cherry',3],['tar',2],['potpourri',3],['violet',3],['truffle',2,8],['anise',2],['leather',2,8],['raspberry',1]],
    producers:['Produttori del Barbaresco','Bruno Giacosa'],
    diffs:['More floral, marginally softer and earlier-drinking than Barolo','Slightly lower alcohol; the tannin is fine rather than brutal']},
   {id:'valtellina',name:'Valtellina',place:'Valtellina, Lombardy, Italy',country:'Italy',world:'old',climate:'cool',
@@ -1047,7 +1061,7 @@ WINE_DB.push(
   {with:'grenache',why:'High alcohol, soft tannin, sweet red fruit.',
    sep:'Grenache is paler, more candied-strawberry and herbal-garrigue; Zinfandel is darker, brambly and raisined. Grenache browns at the rim earlier.'},
   {with:'tempranillo',why:'American oak gives both coconut, dill and sweet vanilla.',
-   sep:'Ignore the oak. Zinfandel is 15%, jammy and soft; Tempranillo is 13.5%, dried-fruited, firmer in acid and tannin. The Spanish wine tastes cool; the Californian tastes hot.'},
+   sep:'Ignore the oak, then read the fruit and the finish. Zinfandel gives fresh berry sitting next to raisin and finishes warm and sweet; Rioja gives dried cherry and fig over tobacco and leather at 13.5% and finishes cool and firm. Careful with Ribera del Duero and Toro, which run 14.5–15% and remove that alcohol tell entirely.'},
   {with:'corvina',why:'Amarone and Zinfandel both push raisination to the front of the wine.',
    sep:'Amarone is raisined all the way through — dried fig, chocolate, a bitter-almond finish and often a touch of residual sugar at 15–16% alcohol. Zinfandel still shows fresh berry alongside the raisin and finishes drier and brighter.'}],
  regions:[
@@ -1079,12 +1093,12 @@ WINE_DB.push(
 {id:'malbec',grape:'Malbec',color:'red',flight:true,
  identity:'Inky violet-purple, blue-black plum and violet, plush low-acid palate with velvety tannin.',
  ranges:{concentration:[5,6],acidity:[2,4],tannin:[4,5],alcohol:[4,5],body:[4,5],finish:[2,3]},
- hues:['purple','ruby-purple'],
+ hues:['purple','ruby-purple','ruby','ruby-garnet'],
  markers:[['black-plum',3],['violet',3],['blueberry',2],['blackberry',2],['mocha',2],['vanilla',2],
    ['black-pepper',1],['leather',1,8],['ripe',3],['baking-spice',1]],
  texture:['velvety','plush','round','glycerol-rich'],
  tells:['Purple to the rim, staining the glass','Violet perfume over blue-black plum','Plush, low-acid mid-palate that fades gently rather than gripping'],
- vetoes:['concentration<=2','garnet-tawny','brick','acidity>=5','bell-pepper'],
+ vetoes:['concentration<=2','brick','acidity>=5','bell-pepper'],
  aging:{5:'Violet and blue fruit at their most vivid; oak sweet.',10:'Fruit darkens toward prune and leather; colour slowly loses its purple edge.',20:'Cahors can go savoury, earthy and tarry; Mendoza generally does not reward this.'},
  producers:['Catena Zapata','Achaval-Ferrer','Ch. du Cèdre'],
  pitfalls:[
@@ -1121,7 +1135,7 @@ WINE_DB.push(
  identity:'Deep ruby with a loud green-savoury streak — soy, green peppercorn and bell pepper over plush plummy fruit.',
  ranges:{concentration:[4,6],acidity:[3,4],tannin:[4,5],alcohol:[3,5],body:[4,5],finish:[2,3]},
  hues:['ruby-purple','ruby'],
- markers:[['bell-pepper',3],['jalapeno',2],['black-plum',3],['tomato-leaf',2],['mocha',2],['black-pepper',2],
+ markers:[['bell-pepper',3],['soy',3],['jalapeno',2],['black-plum',3],['tomato-leaf',2],['mocha',2],['black-pepper',2],
    ['tobacco',2],['green-olive',2],['vanilla',1],['blackberry',2],['iron-earth',1],['smoke',1]],
  texture:['plush','round','velvety','drying'],
  tells:['Pyrazine at full ripeness — green pepper and soy on a plump, dark, warm-climate red','Savoury, almost meaty finish with a faint bitterness','Provenance narrows it fast: virtually the entire world planting sits in one country'],
@@ -1139,7 +1153,7 @@ WINE_DB.push(
   {id:'colchagua-carmenere',name:'Colchagua / Peumo',place:'Colchagua & Cachapoal, Chile',country:'Chile',world:'new',climate:'warm',
    identity:'The classic warm-site version: plush plum, mocha oak and green peppercorn.',
    ranges:{concentration:[5,6],acidity:[3,4],tannin:[4,5],alcohol:[4,5],body:[4,5]},
-   markers:[['black-plum',3],['bell-pepper',3],['mocha',2],['tobacco',2],['vanilla',2],['ripe',2]],
+   markers:[['black-plum',3],['bell-pepper',3],['soy',3],['mocha',2],['tobacco',2],['vanilla',2],['ripe',2]],
    winemaking:['new-oak'],producers:['Concha y Toro Carmín de Peumo','Viña Carmen'],
    diffs:['Riper and plusher; oak often hides part of the green note']}]},
 
@@ -1183,7 +1197,7 @@ WINE_DB.push(
    identity:'Carbonic at its most obvious: banana, bubble gum, bright purple, tart and light.',
    ranges:{concentration:[2,3],acidity:[5,6],tannin:[2,3],alcohol:[2,3],body:[2,2]},
    markers:[['banana',3],['bubble-gum',3],['raspberry',3],['violet',2],['strawberry',2]],
-   winemaking:['carbonic','stainless'],producers:['Jean-Paul Brun'],
+   winemaking:['carbonic','stainless'],producers:['Georges Duboeuf'],
    diffs:['Carbonic markers at full volume — banana and pear drop','The clearest demonstration of winemaking masking varietal character']}]}
 );
 </script>
@@ -1213,7 +1227,7 @@ WINE_DB.push(
   {id:'bandol',name:'Bandol',place:'Bandol, Provence, France',country:'France',world:'old',climate:'warm',
    identity:'The benchmark — game, leather, garrigue and blackberry, with massive tannin and a saline maritime edge.',
    ranges:{concentration:[4,5],acidity:[3,4],tannin:[5,6],alcohol:[4,4],body:[4,5]},
-   markers:[['game',3],['leather',3],['garrigue',3],['blackberry',2],['saline',2],['black-pepper',2],['barnyard',2],['iron-earth',2]],
+   markers:[['game',3],['leather',3],['garrigue',3],['blackberry',2],['saline',2],['black-pepper',2],['barnyard',2],['brett',1],['iron-earth',2]],
    winemaking:['neutral-oak'],producers:['Domaine Tempier','Ch. Pradeaux'],
    diffs:['Sea-salt savouriness alongside the game','Requires a decade; young Bandol is brutally tannic']},
   {id:'jumilla',name:'Jumilla / Yecla',place:'Murcia, Spain',country:'Spain',world:'old',climate:'warm',
@@ -1228,7 +1242,7 @@ WINE_DB.push(
  identity:'Deep purple and intensely floral — violet and bergamot over blue-black fruit, with firm schist-driven tannin.',
  ranges:{concentration:[5,6],acidity:[4,5],tannin:[5,6],alcohol:[4,5],body:[4,5],finish:[3,4]},
  hues:['purple','ruby-purple'],
- markers:[['violet',3],['blueberry',3],['black-plum',2],['slate',2],['mint',2],
+ markers:[['violet',3],['bergamot',2],['blueberry',3],['black-plum',2],['slate',2],['mint',2],
    ['blackberry',2],['graphite',2],['black-pepper',1],['mocha',1],],
  texture:['grippy','velvety','chewy','drying'],
  tells:['Violet and bergamot perfume — the most floral of the dark reds','Schist minerality with a dry, mountain-herb finish','Very deep colour with high acid AND high tannin'],
@@ -1298,7 +1312,7 @@ WINE_DB.push(
   {with:'sangiovese',why:'Both are pale-to-medium, high-acid, sour-cherry Italians.',
    sep:'Sangiovese has dusty tannin and tomato-leaf herbs; Corvina is softer, with a bitter almond finish and no herbal savouriness.'},
   {with:'nebbiolo',why:'Amarone and Barolo both come in pale-to-medium garnet at high alcohol.',
-   sep:'Amarone is raisined and sweet-edged with soft tannin; Barolo is bone dry with savage tannin, rose and tar.'}],
+   sep:'Appassimento decides it, not structure. Amarone tastes of dried and shrivelled fruit, finishes on bitter almond, and usually carries a little residual sugar; Barolo is bone dry with rose and tar over a drier, more scouring tannin. Both can be firm — only one tastes raisined.'}],
  regions:[
   {id:'valpolicella',name:'Valpolicella Classico',place:'Veneto, Italy',country:'Italy',world:'old',climate:'moderate',
    identity:'Light, tart and crunchy — sour cherry and almond, very little tannin.',
@@ -1324,7 +1338,7 @@ WINE_DB.push(
  identity:'The Nebbiolo ringer: pale garnet fading to orange, sun-dried tomato and olive, with brutal tannin and searing acid.',
  ranges:{concentration:[1,3],acidity:[5,6],tannin:[5,6],alcohol:[3,4],body:[3,4],finish:[3,4]},
  hues:['ruby-garnet','garnet','garnet-tawny','brick'],
- markers:[['tomato-leaf',3],['green-olive',3],['dried-cherry',3],['sour-cherry',2],
+ markers:[['sun-dried-tomato',3],['tomato-leaf',2],['green-olive',3],['dried-cherry',3],['sour-cherry',2],
    ['dried-leaves',2],['potpourri',2],['leather',2,8],['anise',1],['iron-earth',2],['mushroom',2,10],['cranberry',2]],
  texture:['drying','dusty','rustic','grippy','angular'],
  tells:['Sun-dried tomato — the single most reliable marker here','Pale, orange-tinged colour with savage tannin','Green olive brine on the finish'],
@@ -1340,7 +1354,7 @@ WINE_DB.push(
   {id:'naoussa',name:'Naoussa',place:'Naoussa, Macedonia, Greece',country:'Greece',world:'old',climate:'moderate',flight:true,
    identity:'The benchmark: pale, tannic, tomato-and-olive savoury, built for decades.',
    ranges:{concentration:[1,3],acidity:[5,6],tannin:[5,6],alcohol:[3,4],body:[3,3]},
-   markers:[['tomato-leaf',3],['green-olive',3],['dried-cherry',3],['potpourri',2],['leather',2,8],['iron-earth',2]],
+   markers:[['sun-dried-tomato',3],['green-olive',3],['dried-cherry',3],['potpourri',2],['leather',2,8],['iron-earth',2]],
    winemaking:['neutral-oak'],producers:['Thymiopoulos','Kir-Yianni'],
    diffs:['Modern producers make a softer, fruitier style — but the tomato note persists']}]},
 
@@ -1638,6 +1652,7 @@ WINE_DB.push(
    hues:['pale-straw','straw','yellow-gold'],
    markers:[['grapefruit',3],['lemon',2],['lanolin',2],['toast',2],['nuts',2],['lees',3],['flint',2],['struck-match',2],['honey',1,10]],
    winemaking:['new-oak','lees'],producers:['Ch. Smith Haut Lafitte','Domaine de Chevalier'],
+   unveto:['vanilla','coconut'],
    diffs:['Oak and lees give weight and smoke that no other Sauvignon has','Blended with Sémillon — lanolin and wax appear','Frequently mis-called as white Burgundy']},
   {id:'casablanca',name:'Casablanca / Leyda',place:'Casablanca & Leyda, Chile',country:'Chile',world:'new',climate:'cool',
    identity:'Cool coastal Chile — grapefruit and lime with a saline, almost oyster-shell finish.',
@@ -1668,7 +1683,7 @@ WINE_DB.push(
    ['chamomile',1],['preserved-lemon',1,8],['saline',1],['crushed-rock',2]],
  texture:['crisp','taut','lean','angular','oily'],
  tells:['Searing acid at 8–12% alcohol — the lowest-alcohol serious dry white','Wet slate and crushed stone behind lime and green apple','Petrol/kerosene from about five years, and unmistakable by ten'],
- vetoes:['vanilla','toast','butter','coconut','bell-pepper','jalapeno','acidity<=3','body>=5'],
+ vetoes:['vanilla','butter','coconut','bell-pepper','jalapeno','acidity<=3','body>=5'],
  aging:{5:'Primary lime and apple; petrol beginning to peek through; acid still dominant.',10:'Petrol/kerosene clear, honey and preserved lemon arrive, colour deepens to gold.',20:'Great Mosel at twenty is honey, petrol, lime cordial and smoke over still-electric acid — the alcohol never rises to hide it.'},
  producers:['Egon Müller','J.J. Prüm','Trimbach','Grosset'],
  pitfalls:[
@@ -1733,7 +1748,7 @@ WINE_DB.push(
    ['beeswax',3],['white-peach',2],['marzipan',2],['chalk',2],['wet-stone',2],['preserved-lemon',2],['almond-skin',1],['lees',2]],
  texture:['waxy','oily','taut','crisp','round'],
  tells:['Quince and chamomile with a wet-wool/lanolin lift','High acid that keeps even sweet versions tense','Honey without oak — a Chenin thing, not a barrel thing'],
- vetoes:['petrol','lychee','jalapeno','coconut','acidity<=3'],
+ vetoes:['petrol','lychee','jalapeno','coconut','acidity<=2'],
  aging:{5:'Apple and quince primary; wool note emerging; acid dominant.',10:'Honey, beeswax and marzipan arrive; texture turns waxy and dense.',20:'Great Vouvray and Savennières become honeyed, smoky and nutty while staying bone-taut.'},
  producers:['Domaine Huet','Nicolas Joly','François Chidaine','Alheit'],
  pitfalls:[
@@ -1846,7 +1861,7 @@ WINE_DB.push(
    identity:'Between Wachau power and Kamptal precision, with loess breadth and stony lift.',
    ranges:{concentration:[1,3],acidity:[4,5],alcohol:[3,3],body:[3,3],sweetness:[1,2]},
    markers:[['white-pepper',3],['green-apple',2],['nectarine',2],['lees',2],['crushed-rock',2],['fennel',1]],
-   winemaking:['stainless','lees'],producers:['Nikolaihof','Salomon Undhof'],diffs:['Middle ground in weight and acid']}]}
+   winemaking:['stainless','lees'],producers:['Salomon Undhof'],diffs:['Middle ground in weight and acid']}]}
 );
 </script>
 <script>
@@ -2047,7 +2062,7 @@ WINE_DB.push(
  tells:['Green almond bitterness on the finish','Wild Mediterranean herbs over citrus, with a salty edge'],
  vetoes:['petrol','lychee','butter','vanilla','acidity<=2'],
  aging:{5:'Best young and fresh.',10:'Only the most textured Sardinian examples.',20:'No.'},
- producers:['Argiolas','Capichera','Pieropan (Tuscany)'],
+ producers:['Argiolas','Capichera','Ornellaia'],
  pitfalls:[
   {with:'albarino',why:'Both coastal, saline, citrus-driven whites with a bitter finish.',
    sep:'Albariño has higher acid and clearer stone fruit with sea-spray salinity; Vermentino is herbier and more almond-bitter with a drier, more Mediterranean feel.'},
@@ -2338,7 +2353,7 @@ WINE_DB.push(
  tells:['Earthy, herbal and quiet — almost deliberately unshowy','Stony dry finish with a faint vegetal-earth note'],
  vetoes:['petrol','lychee','butter','vanilla','jalapeno'],
  aging:{5:'Top Franken bottlings gain weight and earthiness.',10:'Great GG Silvaner turns honeyed and smoky.',20:'Rare but possible.'},
- producers:['Horst Sauer','Zilliken (Silvaner)','Weingut Am Stein'],
+ producers:['Horst Sauer','Rudolf Fürst','Weingut Am Stein'],
  pitfalls:[
   {with:'pinot-gris',why:'Both neutral-ish, dry, medium-bodied central European whites.',
    sep:'Pinot Gris is pear-and-almond with more weight and less earth; Silvaner is herbier and stonier with a drier, earthier finish.'},
@@ -2526,7 +2541,8 @@ var GRAPES={},CANDIDATES=[],CAND_BY_ID={};
         ranges:Object.assign({},g.ranges,r.ranges||{}),
         hues:r.hues||g.hues||[],
         markers:mergeMarkers(g.markerObjs,normMarkers(r.markers)),
-        vetoes:dedupeVetoes((g.vetoes||[]).concat(r.vetoes||[])),
+        vetoes:dedupeVetoes((g.vetoes||[]).concat(r.vetoes||[]))
+          .filter(function(v){return (r.unveto||[]).indexOf(v)<0;}),
         winemaking:r.winemaking||[],
         texture:r.texture||g.texture||[],
         producers:r.producers||g.producers||[],
@@ -2717,6 +2733,17 @@ function scoreCandidate(c,obs,ctx){
     vetoes:vetoes,support:sup.slice(0,6),contra:con.slice(0,5)};
 }
 
+/* Pitfall separations often open with a short framing line ("Tomato versus
+   tar.", "Feel the shape.") and put the actual instruction second. Take
+   enough sentences to carry the information, not just the first. */
+function leadSentences(txt){
+  var parts=String(txt||'').split('. '),out='';
+  for(var i=0;i<parts.length;i++){
+    out+=(out?'. ':'')+parts[i];
+    if(out.length>=70||i>=1)break;
+  }
+  return out.replace(/\.\s*$/,'')+'.';
+}
 /* One line telling the taster what separates two candidates. */
 function discriminator(a,b){
   if(!a||!b)return '';
@@ -2728,7 +2755,7 @@ function discriminator(a,b){
   var g=grapeOf(a.cand.grapeId),p=(g.pitfalls||[]).filter(function(x){return x.with===b.cand.grapeId;})[0];
   if(!p){var g2=grapeOf(b.cand.grapeId);
     p=(g2.pitfalls||[]).filter(function(x){return x.with===a.cand.grapeId;})[0];}
-  if(p)return p.sep.split('. ')[0].replace(/\.$/,'')+'.';
+  if(p)return leadSentences(p.sep);
   /* computed fallback: strongest marker one has and the other lacks */
   var mk=a.cand.markers.filter(function(m){return m.w>=2&&!b.cand.markerMap[m.note];})
     .sort(function(x,y){return y.w-x.w;})[0];
@@ -2879,6 +2906,7 @@ var S={
   history:[],
   view:'taste',
   codex:{grapeId:null,regionId:null,q:'',color:'',country:'',flight:false,body:''},
+  logFilter:'all',
   practice:null
 };
 function saveState(){
@@ -2901,7 +2929,7 @@ function newSession(mode,practiceWine){
   S.session={id:'s'+Date.now().toString(36),mode:mode||'blind',started:Date.now(),
     step:0,obs:{aromas:{},palateConfirm:{}},guess:null,result:null,actual:null,
     actualVintage:null,peeked:false,practiceWine:practiceWine||null,
-    flashcard:false,note:'',scored:null};
+    flashcard:false,note:'',scored:null,pendingActual:null,pendingVintage:null};
   saveState();return S.session;
 }
 function sess(){if(!S.session)newSession('blind');return S.session;}
@@ -3095,7 +3123,8 @@ function stepHeader(root){
     if(i===s.step)b.setAttribute('aria-current','step');
     b.onclick=function(){
       if(i>4&&!s.result)return toast('Commit your own call first.');
-      if(i===4&&s.step>4)return;
+      if(i<5&&s.scored)return toast('This session is scored — start a new tasting to change the grid.');
+      if(i===4&&s.step>4)return toast('Your call is locked in for this session.');
       s.step=i;saveState();renderTaste();};
     nav.appendChild(b);
   });
@@ -3514,7 +3543,7 @@ function stepReveal(c){
         if(!found)return 'Your pick is outside the ranked field entirely.';
         var pos=mock.all.indexOf(found)+1;
         return 'Your pick sits at #'+pos+' of '+mock.all.length+'. '+
-          (found.contra[0]?'The grid argues against it because '+found.contra[0]+'.':
+          (found.contra[0]?'The grid argues against it because '+found.contra[0].t+'.':
            'Nothing in the grid excludes it — it simply had less corroborating evidence.');
       })();
       cmp.appendChild(why);
@@ -3545,20 +3574,28 @@ function stepReveal(c){
   c.appendChild(el('hr','sep'));
 
   /* have I described a wine like this before? */
-  var chosen={candId:null,vintage:null};
-  function adopt(h){
-    /* adopting a match names the WINE. The occasion note and the vintage
-       belong to this bottle, so they come from this screen, not that one. */
-    var nEl=$('bottleNote'),a=CAND_BY_ID[h.actual];
-    s.actual=h.actual;s.actualVintage=chosen.vintage||null;
+  /* Recording the bottle is a two-step commit: pick, then confirm. A
+     mis-tap in a 53-item grid used to be final and unrecoverable.       */
+  function commitBottle(cid){
+    var nEl=$('bottleNote'),a=CAND_BY_ID[cid];
     if(nEl)s.note=nEl.value.trim();
+    s.actual=cid;s.actualVintage=s.pendingVintage||null;s.pendingActual=null;
     s.scored=slimScore(scoreGuess({candId:s.guess.candId,vintage:s.guess.vintage,
-      actualVintage:s.actualVintage},s.actual));
+      actualVintage:s.actualVintage},cid));
     saveState();recordHistory();renderTaste();
     toast('Recorded as '+(a?a.grape+' — '+a.region:'that wine')+'.');
   }
+  function clearBottle(){
+    s.actual=null;s.actualVintage=null;s.scored=null;
+    s.pendingActual=null;s.pendingVintage=null;
+    saveState();recordHistory();renderTaste();
+    toast('Bottle cleared — record it again.');
+  }
+  /* adopting a recall match names the WINE only; the note and vintage
+     belong to this bottle, so they come from this screen, not that one. */
+  function adopt(h){s.pendingActual=h.actual;saveState();renderTaste();}
   if(s.mode!=='practice')
-    similarPanel(c,s.obs,{excludeId:s.id,onUse:s.scored?null:adopt});
+    similarPanel(c,s.obs,{excludeId:s.id,hideWhenEmpty:true,onUse:s.scored?null:adopt});
 
   /* the bottle */
   var act=el('div','card flat');
@@ -3573,33 +3610,68 @@ function stepReveal(c){
   }
   if(s.scored){
     renderScoreCard(act,s.scored);
+    if(s.mode!=='practice'){
+      var undo=el('button','btn sm ghost','Not that bottle — change it');
+      undo.style.marginTop='10px';undo.onclick=clearBottle;
+      act.appendChild(undo);
+    }
     act.appendChild(el('hr','sep'));
     noteField();
   }else if(s.mode==='practice'&&s.practiceWine){
-    act.appendChild(el('p','muted small','Practice wines score themselves.'));
+    /* skipped the guess, so there is no score to show — but the answer is
+       sitting in s.actual and withholding it makes the drill useless */
+    var pw=CAND_BY_ID[s.practiceWine.candId];
+    var rev=el('div','spread');
+    var rl=el('div');
+    rl.appendChild(el('div','tiny dim','IT WAS'));
+    var rb=el('b',null,pw?pw.grape:'—');rb.style.fontSize='1.35rem';
+    rl.appendChild(rb);
+    if(pw)rl.appendChild(el('div','small muted',pw.region+' · '+pw.place));
+    rev.appendChild(rl);
+    rev.appendChild(el('span','badge','not scored'));
+    act.appendChild(rev);
+    act.appendChild(el('p','muted small','You skipped the call, so there is nothing to score. '+
+      (pw?'Read '+pw.grape+' in the Codex and run the drill again.':'')));
+    if(pw){
+      var cx=el('button','btn sm ghost','Open '+pw.grape+' in the Codex');
+      cx.onclick=function(){setView('codex',{grapeId:pw.grapeId,regionId:pw.regionId});};
+      act.appendChild(cx);
+    }
   }else{
     act.appendChild(el('p','muted small','Enter the bottle to score this session, and so that a future grid like this one can find it. Skip it and the session is still logged, just unscored and invisible to recall.'));
     noteField();
     var vsel=el('div');
     var vr=chipRow();
     VINTAGES.forEach(function(v){
-      vr.appendChild(chip(v[1],false,function(){
-        chosen.vintage=chosen.vintage===v[0]?null:v[0];
-        Array.prototype.forEach.call(vr.children,function(ch,i){
-          ch.setAttribute('aria-pressed',VINTAGES[i][0]===chosen.vintage?'true':'false');});
+      vr.appendChild(chip(v[1],s.pendingVintage===v[0],function(){
+        s.pendingVintage=(s.pendingVintage===v[0])?null:v[0];
+        saveState();renderTaste();
       },'sm'));
     });
     act.appendChild(el('div','tiny dim','ACTUAL VINTAGE RANGE'));
     act.appendChild(vr);
+    if(s.pendingActual&&CAND_BY_ID[s.pendingActual]){
+      var pc=CAND_BY_ID[s.pendingActual],cf=el('div','pit');
+      cf.style.borderLeftColor='var(--good)';
+      cf.appendChild(el('div','pm','RECORD THIS BOTTLE?'));
+      cf.appendChild(el('div','pw',pc.grape+' — '+pc.region));
+      cf.appendChild(el('p','tiny dim',pc.place));
+      cf.appendChild(el('p','tiny dim',s.pendingVintage?
+        'Vintage bracket: '+optLabel(VINTAGES,s.pendingVintage):
+        'No vintage bracket set — the vintage part of the score will be skipped.'));
+      var cr=el('div','btnrow');
+      var no=el('button','btn ghost','Not that one');
+      no.onclick=function(){s.pendingActual=null;saveState();renderTaste();};
+      var yes=el('button','btn primary','Record and score');
+      yes.onclick=function(){commitBottle(s.pendingActual);};
+      cr.appendChild(no);cr.appendChild(yes);cf.appendChild(cr);
+      act.appendChild(cf);
+    }
     act.appendChild(el('hr','sep'));
-    winePicker(vsel,{onPick:function(cid){
+    winePicker(vsel,{selected:s.pendingActual,onPick:function(cid){
       var nEl=$('bottleNote');
-      chosen.candId=cid;
-      s.actual=cid;s.actualVintage=chosen.vintage;
       if(nEl)s.note=nEl.value.trim();
-      s.scored=slimScore(scoreGuess({candId:s.guess.candId,vintage:s.guess.vintage,
-        actualVintage:chosen.vintage},cid));
-      saveState();recordHistory();renderTaste();
+      s.pendingActual=cid;saveState();renderTaste();
     }});
     act.appendChild(vsel);
   }
@@ -3958,7 +4030,7 @@ function renderHistory(){
   var all=S.history.slice().sort(function(a,b){return b.ts-a.ts;});
   var sc=scoredSessions();
   var stats=el('div','row');
-  stats.appendChild(el('span','badge',all.length+' sessions'));
+  stats.appendChild(el('span','badge',all.length+' session'+(all.length===1?'':'s')));
   stats.appendChild(el('span','badge',sc.length+' scored'));
   if(sc.length){
     var avg=Math.round(sc.reduce(function(a,h){return a+h.scored.pct;},0)/sc.length);
@@ -4054,32 +4126,100 @@ function renderHistory(){
     });
     pc.appendChild(tb2);root.appendChild(pc);
   }
-  /* sessions */
+  /* the log — every entry, newest first, with what you called, what the
+     app called, and what it turned out to be */
   var lc=el('div','card');
-  lc.appendChild(el('h3',null,'Sessions'));
-  all.slice(0,60).forEach(function(h){
-    var row=el('button','wcard');row.type='button';row.style.marginBottom='8px';row.style.width='100%';
-    var top=el('div','spread');
-    var l=el('div');
-    var a=h.scored?CAND_BY_ID[h.scored.actualId]:null;
+  var lh=el('div','spread');
+  lh.appendChild(el('h3',null,'Log'));
+  lh.appendChild(el('span','tiny dim',all.length+' entr'+(all.length===1?'y':'ies')));
+  lc.appendChild(lh);
+  var fr=el('div','row');fr.style.margin='0 0 12px';
+  [['all','All'],['blind','Blind'],['practice','Practice'],
+   ['scored','Scored'],['unscored','Unscored'],['peeked','Peeked']].forEach(function(f){
+    fr.appendChild(chip(f[1],S.logFilter===f[0],function(){
+      S.logFilter=f[0];renderHistory();},'sm'));
+  });
+  lc.appendChild(fr);
+  var rows=all.filter(function(h){
+    var f=S.logFilter||'all';
+    if(f==='all')return true;
+    if(f==='scored')return !!h.scored;
+    if(f==='unscored')return !h.scored;
+    if(f==='peeked')return !!h.peeked;
+    return h.mode===f;
+  });
+  if(!rows.length)lc.appendChild(el('div','empty','No entries match that filter.'));
+  rows.slice(0,120).forEach(function(h){
+    var a=h.actual?CAND_BY_ID[h.actual]:null;
     var gsd=h.guess&&h.guess.candId?CAND_BY_ID[h.guess.candId]:null;
-    l.appendChild(el('b',null,a?a.grape+' — '+a.region:(h.result&&h.result.top[0]?'unlabelled ('+h.result.top[0].grape+'?)':'unlabelled session')));
-    l.appendChild(el('div','sub',fmtDate(h.ts)+' · '+h.mode+(h.flashcard?' · flashcard':'')+(h.peeked?' · peeked':'')));
-    if(gsd)l.appendChild(el('div','sub','you said '+gsd.grape+(h.guess.skipped?' (skipped)':'')));
-    if(h.note)l.appendChild(el('div','sub','“'+h.note+'”'));
-    top.appendChild(l);
+    var app=h.result&&h.result.top&&h.result.top[0]?h.result.top[0]:null;
+    var row=el('div','logrow'+(h.peeked?' flagged':''));
+    var head=el('div','lhead');
+    var meta=el('div');
+    meta.appendChild(el('div','when',fmtDate(h.ts)));
+    var tags=el('div','row tight');tags.style.marginTop='4px';
+    tags.appendChild(el('span','badge',h.mode));
+    if(h.flashcard)tags.appendChild(el('span','badge','flashcard'));
+    if(h.peeked)tags.appendChild(el('span','badge peek','peeked'));
+    if(!h.scored)tags.appendChild(el('span','badge','unscored'));
+    meta.appendChild(tags);
+    head.appendChild(meta);
     if(h.scored){
-      var sv=el('div');sv.style.textAlign='right';
-      var n=el('b',null,h.scored.pct+'');n.style.fontSize='1.4rem';
+      var sv=el('div','logscore');
+      var n=el('b',null,h.scored.pct+'');
       n.style.color=h.scored.pct>=70?'var(--good2)':h.scored.pct>=40?'var(--warn)':'var(--bad)';
       sv.appendChild(n);sv.appendChild(el('div','tiny dim','/100'));
-      top.appendChild(sv);
-    }else top.appendChild(el('span','badge','unscored'));
-    row.appendChild(top);
-    row.onclick=function(){openSession(h);};
+      head.appendChild(sv);
+    }
+    row.appendChild(head);
+    function line(lab,txt,cls){
+      var d=el('div','logline'+(cls?' '+cls:''));
+      d.appendChild(el('b',null,lab));d.appendChild(el('span',null,txt));
+      row.appendChild(d);
+    }
+    line('You',gsd?gsd.grape+' — '+gsd.region:'skipped the call',
+      h.scored?(h.scored.grapeRight?'hit':'miss'):'');
+    if(app)line('App',app.grape+' — '+app.region+' · '+Math.round(app.confidence)+'%');
+    line('Was',a?a.grape+' — '+a.region:'not recorded');
+    if(h.note)line('Note','“'+h.note+'”');
+    var acts=el('div','row');acts.style.marginTop='8px';
+    var open=el('button','btn sm ghost','Open');
+    open.onclick=function(){openSession(h);};
+    var del=el('button','btn sm ghost','Delete');
+    del.style.color='var(--bad)';
+    del.setAttribute('aria-label','Delete the entry from '+fmtDate(h.ts));
+    del.onclick=function(){deleteSession(h.id);};
+    acts.appendChild(open);acts.appendChild(del);
+    row.appendChild(acts);
     lc.appendChild(row);
   });
+  if(rows.length>120)
+    lc.appendChild(el('p','tiny dim','Showing the most recent 120 of '+rows.length+'. Export for the full record.'));
   root.appendChild(lc);
+}
+/* Remove a logged session. If it is the one currently open, the live
+   session is reset too, so the app is never pointing at a deleted row. */
+function deleteSession(id,then){
+  var h=null;S.history.forEach(function(x){if(x.id===id)h=x;});
+  if(!h)return;
+  var a=h.actual?CAND_BY_ID[h.actual]:null;
+  openModal('Delete this entry?',function(sh){
+    sh.appendChild(el('p',null,(a?a.grape+' — '+a.region:'Unlabelled session')+
+      ', '+fmtDate(h.ts)+'.'));
+    if(h.note)sh.appendChild(el('p','muted small','“'+h.note+'”'));
+    sh.appendChild(el('p','muted small','This removes it from the log, from your accuracy figures and from recall. It cannot be undone — export first if you want a copy.'));
+    var r=el('div','btnrow');
+    var no=el('button','btn ghost','Keep it');no.onclick=closeModal;
+    var yes=el('button','btn primary','Delete');
+    yes.onclick=function(){
+      S.history=S.history.filter(function(x){return x.id!==id;});
+      if(S.session&&S.session.id===id)newSession('blind');
+      saveState();closeModal();
+      if(then)then();else renderHistory();
+      toast('Entry deleted.');
+    };
+    r.appendChild(no);r.appendChild(yes);sh.appendChild(r);
+  });
 }
 function openSession(h){
   openModal('Session — '+fmtDate(h.ts),function(sh){
@@ -4100,6 +4240,10 @@ function openSession(h){
     });
     if(shown)sh.appendChild(tb);
     else sh.appendChild(el('p','muted small','Nothing was recorded on the grid for this session.'));
+    var del=el('button','btn ghost wide','Delete this entry');
+    del.style.marginTop='14px';del.style.color='var(--bad)';
+    del.onclick=function(){deleteSession(h.id,function(){renderHistory();});};
+    sh.appendChild(del);
   });
 }
 function exportJSON(){
@@ -4295,6 +4439,7 @@ function similarPanel(parent,obs,opts){
     'Nothing like this in your notes'));
   head.appendChild(el('span','badge','≥ '+res.threshold+'%'));
   box.appendChild(head);
+  if(!res.matches.length&&opts.hideWhenEmpty)return res;
   if(!res.matches.length){
     var why=[];
     if(res.skippedUnlabelled)why.push(res.skippedUnlabelled+' past session'+
