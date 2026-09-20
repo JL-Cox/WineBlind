@@ -165,6 +165,11 @@ details.grp .grpbody{padding:0 12px 12px}
 .steps{display:flex;gap:4px;margin:0 0 12px;overflow-x:auto;padding-bottom:2px;
   scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .steps::-webkit-scrollbar{display:none}
+.railwrap{position:relative}
+.railwrap::after{content:"";position:absolute;top:0;right:0;bottom:0;width:26px;
+  pointer-events:none;background:linear-gradient(90deg,transparent,var(--bg));opacity:0;
+  transition:opacity .15s}
+.railwrap.more::after{opacity:1}
 .steps button{
   flex:1 0 auto;min-height:40px;padding:0 10px;white-space:nowrap;
   border:1px solid var(--line);background:var(--panel);border-radius:10px;
@@ -242,7 +247,8 @@ select.inp{-webkit-appearance:none;appearance:none;background-image:linear-gradi
 .logline{display:flex;gap:8px;font-size:.88rem;line-height:1.45;padding:3px 0}
 .logline b{flex:none;width:34px;color:var(--txt3);font-weight:600;font-size:.74rem;
   letter-spacing:.06em;text-transform:uppercase;padding-top:2px}
-.logline span{min-width:0}
+.logline span{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.notice,.pit p,.logrow,.wcard,.ev li span{overflow-wrap:anywhere}
 .logline.hit span{color:var(--good2)}
 .logline.miss span{color:var(--bad)}
 .logscore{text-align:right;font-variant-numeric:tabular-nums;flex:none}
@@ -481,9 +487,11 @@ function fieldValueText(k,v){
   if(k==='hue')return HUE_INDEX[v]?HUE_INDEX[v].name:String(v);
   if(FIELD_SCALE[k]&&typeof v==='number')return scaleLabel(FIELD_SCALE[k],v);
   var tbl=FIELD_OPTS[k];
+  /* the field's own table wins: 'lees' and 'oxidative' are both winemaking
+     ids AND aroma ids, and were playing back with the aroma label      */
   if(Array.isArray(v))return v.map(function(x){
-    if(AROMA[x])return aromaLabel(x);
     if(tbl)return optLabel(tbl,x);
+    if(AROMA[x])return aromaLabel(x);
     return String(x);}).join(', ');
   if(tbl)return optLabel(tbl,v);
   return String(v);
@@ -2597,7 +2605,13 @@ function validateDB(){
 /* ================================================ 3. ENGINE ============== */
 /* Weights for each structural scale. A scale the taster skipped is absent
    from BOTH the numerator and the denominator — it cannot help or hurt.  */
-var STRUCT_W={concentration:1.2,acidity:1.5,tannin:1.5,alcohol:1.2,body:1.0,sweetness:1.3,finish:0.6,intensity:0.5};
+/* No candidate declares an `intensity` range, so aromatic and flavour
+   intensity are recorded for the taster's own notes but carry no weight
+   here — and must not inflate the confidence ceiling either (see
+   EVIDENCE_FREE below).                                               */
+var STRUCT_W={concentration:1.2,acidity:1.5,tannin:1.5,alcohol:1.2,body:1.0,sweetness:1.3,finish:0.6};
+var EVIDENCE_FREE=['noseIntensity','flavorIntensity','clarity','legs','gumStain','bubbles',
+  'rim','balance','finishesOn','quality'];
 var HUE_W=1.4, TELL_MISS_W=1.3, WORLD_W=0.7, CLIMATE_W=0.7, WM_W=0.5;
 var CLIMATE_ORD={cool:1,moderate:2,warm:3};
 
@@ -2780,7 +2794,9 @@ function runInference(obs,opts){
   var scored=[];
   pool.forEach(function(c){var s=scoreCandidate(c,obs,ctx);if(s)scored.push(s);});
   scored.sort(function(a,b){return b.match-a.match;});
-  if(!scored.length)return {top:[],all:[],obsCount:0,fieldMass:0};
+  if(!scored.length)return {top:[],all:[],grapeRank:[],obsCount:countObservations(obs),
+    tellsFound:Object.keys(ctx.tellsFound).length,fieldMass:0,remaining:100,cap:0,
+    emptyPool:obs.wineType||null};
 
   var obsCount=countObservations(obs);
   var tellsFound=Object.keys(ctx.tellsFound).length;
@@ -2790,7 +2806,10 @@ function runInference(obs,opts){
   /* Evidence ceiling: high confidence has to be earned. Above ~85% needs
      both a well-filled grid and several diagnostic markers.             */
   var diag=Math.max(tellsFound,scored[0].tellHits);
-  var cap=0.42+0.02*Math.min(obsCount,12)+0.05*Math.min(diag,5);
+  /* count only what the engine actually weighed */
+  var evidenceCount=obsCount;
+  EVIDENCE_FREE.forEach(function(k){if(obs[k]!=null&&obs[k]!=='')evidenceCount--;});
+  var cap=0.42+0.02*Math.min(Math.max(evidenceCount,0),12)+0.05*Math.min(diag,5);
   var scale=share[0]>cap?cap/share[0]:1;
   scored.forEach(function(s,i){s.confidence=share[i]*scale*100;});
 
@@ -2922,8 +2941,18 @@ function loadState(){
     if(o.theme)S.theme=o.theme;
     if(o.settings)S.settings=Object.assign(S.settings,o.settings);
     if(Array.isArray(o.history))S.history=o.history;
-    if(o.session)S.session=o.session;
+    if(o.session&&validSession(o.session))S.session=o.session;
   }catch(e){/* corrupt payload — start clean rather than crash */}
+}
+/* A restored session has to be shaped like one. Anything else is
+   discarded rather than allowed to throw on every render. */
+function validSession(o){
+  if(!o||typeof o!=='object')return false;
+  if(typeof o.id!=='string'||typeof o.step!=='number')return false;
+  if(!(o.step>=0&&o.step<=5))return false;
+  if(!o.obs||typeof o.obs!=='object')return false;
+  if(o.step===5&&!(o.result&&o.result.top))return false;
+  return true;
 }
 function newSession(mode,practiceWine){
   S.session={id:'s'+Date.now().toString(36),mode:mode||'blind',started:Date.now(),
@@ -3108,7 +3137,7 @@ function answered(obs,k){
 function gridCount(){
   var o=sess().obs,tot=GRID_FIELDS.length,n=0;
   GRID_FIELDS.forEach(function(f){if(answered(o,f[1]))n++;});
-  if(o.wineType==='white'&&!S.settings.tanninOnWhites)tot-=2;
+  if(!showTannin())tot-=2;
   return {n:n,total:tot};
 }
 function showTannin(){
@@ -3128,7 +3157,15 @@ function stepHeader(root){
       s.step=i;saveState();renderTaste();};
     nav.appendChild(b);
   });
-  root.appendChild(nav);
+  var wrap=el('div','railwrap');wrap.appendChild(nav);root.appendChild(wrap);
+  setTimeout(function(){
+    var cur=nav.querySelector('[aria-current="step"]');
+    if(cur)nav.scrollLeft=Math.max(0,cur.offsetLeft-48);
+    wrap.classList.toggle('more',nav.scrollWidth>nav.clientWidth+4);
+  },0);
+  nav.addEventListener('scroll',function(){
+    wrap.classList.toggle('more',nav.scrollLeft+nav.clientWidth<nav.scrollWidth-4);
+  });
   if(s.step<4){
     var bar=el('div','progress');var i2=el('i');
     i2.style.width=Math.round(c.n/c.total*100)+'%';bar.appendChild(i2);
@@ -3156,7 +3193,10 @@ function renderTaste(){
   stepHeader(root);
   var card=el('div','card');
   if(s.mode==='practice'&&s.profile)renderPracticeBrief(card);
-  ({0:stepSight,1:stepNose,2:stepPalate,3:stepConclusion,4:stepGuess,5:stepReveal})[s.step](card);
+  var steps={0:stepSight,1:stepNose,2:stepPalate,3:stepConclusion,4:stepGuess,5:stepReveal};
+  if(!s.obs||typeof s.obs!=='object')s.obs={aromas:{},palateConfirm:{}};
+  if(!steps[s.step]||(s.step===5&&!(s.result&&s.result.top))){s.step=0;saveState();}
+  steps[s.step](card);
   root.appendChild(card);
   if(s.step<4){
     var tools=el('div','row');tools.style.marginTop='4px';
@@ -3194,7 +3234,15 @@ function stepSight(c){
   c.appendChild(el('p','muted small','Record what is in the glass before you name anything. Skip whatever you cannot see.'));
   var types=WINE_TYPES.filter(function(t){return S.settings.extraTypes||CORE_TYPES.indexOf(t[0])>=0;});
   singleField(c,'Wine type',null,'wineType',types,function(){
-    if(o.hue&&HUE_INDEX[o.hue]&&o.wineType&&HUE_INDEX[o.hue].fam!==o.wineType)o.hue=null;});
+    /* HUES.sparkling/.fortified are aliases of white/red, so compare the
+       hue's family against the family this type actually uses          */
+    var fam=o.wineType==='sparkling'?'white':o.wineType==='fortified'?'red':o.wineType;
+    if(o.hue&&HUE_INDEX[o.hue]&&fam&&HUE_INDEX[o.hue].fam!==fam)o.hue=null;
+    /* B3: drop what the new type no longer asks for, rather than keeping
+       it as an invisible observation that still counts and still scores */
+    if(!showTannin()){o.tannin=null;o.tanninTexture=[];}
+    if(o.wineType==='white'||o.wineType==='sparkling')o.gumStain=null;
+  });
   singleField(c,'Clarity',null,'clarity',CLARITY);
   scaleField(c,'Concentration','depth of the core','concentration','concentration');
   hueField(c);
@@ -3393,6 +3441,7 @@ function commitGuess(){
 function slimResult(r){
   return {
     obsCount:r.obsCount,tellsFound:r.tellsFound,remaining:r.remaining,cap:r.cap,
+    emptyPool:r.emptyPool||null,
     grapeRank:(r.grapeRank||[]).slice(0,6).map(function(g){
       return {grapeId:g.grapeId,grape:g.grape,confidence:g.confidence};}),
     top:r.top.map(function(s){
@@ -3417,6 +3466,10 @@ function slimScore(sc){
 /* ================================================ 7. REVEAL ============= */
 function confWord(p){return p>=60?'strong':p>=35?'moderate':p>=18?'tentative':'weak';}
 function rankCard(t,i){
+  /* imported history can be missing anything */
+  t=t||{};t.support=t.support||[];t.contra=t.contra||[];t.siblings=t.siblings||[];
+  t.grape=t.grape||'Unknown';t.region=t.region||'—';t.place=t.place||'';
+  t.confidence=+t.confidence||0;t.match=+t.match||0;
   var box=el('div','rank'+(i===0?' top':''));
   var head=el('button','rhead');head.type='button';
   head.setAttribute('aria-expanded',i===0?'true':'false');
@@ -3464,6 +3517,7 @@ function rankCard(t,i){
     body.appendChild(d);
   }
   var open=el('button','btn sm ghost','Open in Codex');
+  open.disabled=!CAND_BY_ID[t.candId];
   open.style.marginTop='10px';
   open.onclick=function(ev){ev.stopPropagation();closeModal();
     var c=CAND_BY_ID[t.candId];setView('codex',{grapeId:c.grapeId,regionId:c.regionId});};
@@ -3479,6 +3533,12 @@ function rankCard(t,i){
 function stepReveal(c){
   var s=sess(),r=s.result;
   c.appendChild(el('h2',null,'The deduction'));
+  if(r.emptyPool){
+    var np=el('div','notice');
+    np.appendChild(el('b',null,'No '+optLabel(WINE_TYPES,r.emptyPool).toLowerCase()+' wines in the database. '));
+    np.appendChild(el('span',null,'Your grid was recorded in full, but there is nothing here to rank it against — this build carries reds and whites only. Switch the wine type to see a deduction.'));
+    c.appendChild(np);
+  }
   var meta=el('div','row');
   meta.appendChild(el('span','badge',r.obsCount+' observations'));
   meta.appendChild(el('span','badge',r.tellsFound+' diagnostic tell'+(r.tellsFound===1?'':'s')));
@@ -3489,7 +3549,7 @@ function stepReveal(c){
     c.appendChild(el('p','muted small','Thin grid — the field below is wide and the confidences are deliberately low. This is an honest "not enough to say", not a shortlist.'));
   /* Headline the grape, not the village: when four addresses of one grape
      share the lead, the grape is the confident part of the answer.      */
-  if(r.grapeRank&&r.grapeRank[0]&&r.top[0]){
+  if(r.grapeRank&&r.grapeRank.length&&r.grapeRank[0]&&r.top[0]){
     var g0=r.grapeRank[0],lead=el('div','card flat');
     lead.style.borderLeft='4px solid var(--accent)';
     lead.appendChild(el('div','tiny dim','MOST LIKELY GRAPE'));
@@ -3556,12 +3616,14 @@ function stepReveal(c){
   c.appendChild(cmp);
 
   /* ranked field */
+  if(r.top.length){
   c.appendChild(el('h3',null,'Ranked field'));
   r.top.forEach(function(t,i){c.appendChild(rankCard(t,i));});
   var rem=el('p','muted small');
   rem.textContent='Remaining field: '+Math.round(r.remaining)+'% spread across '+
     'the other candidates. Confidence is capped at '+Math.round(r.cap)+'% for a grid of this depth.';
   c.appendChild(rem);
+  }
   if(r.grapeRank&&r.grapeRank.length){
     var gr=el('div','card flat');
     gr.appendChild(el('div','tiny dim','BY GRAPE (ALL ADDRESSES COMBINED)'));
@@ -3608,13 +3670,30 @@ function stepReveal(c){
     n.onchange=function(){s.note=n.value.trim();saveState();recordHistory();};
     act.appendChild(n);
   }
-  if(s.scored){
+  if(s.actual&&s.scored){
     renderScoreCard(act,s.scored);
     if(s.mode!=='practice'){
       var undo=el('button','btn sm ghost','Not that bottle — change it');
       undo.style.marginTop='10px';undo.onclick=clearBottle;
       act.appendChild(undo);
+      act.appendChild(el('hr','sep'));
+      noteField();
     }
+  }else if(s.actual){
+    /* bottle recorded but the call was skipped, so there is nothing to
+       score against — say that instead of asking for the bottle again */
+    var ab=CAND_BY_ID[s.actual];
+    var ar=el('div','spread');
+    var al=el('div');
+    al.appendChild(el('div','tiny dim','IT WAS'));
+    var abb=el('b',null,ab?ab.grape:'—');abb.style.fontSize='1.35rem';
+    al.appendChild(abb);
+    if(ab)al.appendChild(el('div','small muted',ab.region+' · '+ab.place));
+    ar.appendChild(al);ar.appendChild(el('span','badge','not scored'));
+    act.appendChild(ar);
+    act.appendChild(el('p','muted small','You skipped the call, so there is nothing to score — but the bottle is logged, and a future grid like this one will find it.'));
+    var undo2=el('button','btn sm ghost','Not that bottle — change it');
+    undo2.onclick=clearBottle;act.appendChild(undo2);
     act.appendChild(el('hr','sep'));
     noteField();
   }else if(s.mode==='practice'&&s.practiceWine){
@@ -3690,6 +3769,8 @@ function discriminatorBetween(idA,idB){
   return discriminator({cand:a},{cand:b});
 }
 function renderScoreCard(parent,sc){
+  sc=sc||{};sc.parts=Array.isArray(sc.parts)?sc.parts:[];
+  sc.pct=+sc.pct||0;sc.verdict=sc.verdict||'';
   var head=el('div','spread');
   var l=el('div');
   l.appendChild(el('div','tiny dim','YOUR SCORE'));
@@ -3854,6 +3935,7 @@ function codexEntry(root,g,opts){
 
   var tabs=el('div','tabs');tabs.setAttribute('role','tablist');
   var cur=S.codex.regionId;
+  var region=cur?(g.regions||[]).filter(function(r){return r.id===cur;})[0]:null;
   function tabBtn(label,rid){
     var b=el('button',null,label);b.type='button';b.setAttribute('role','tab');
     b.setAttribute('aria-selected',cur===rid?'true':'false');
@@ -3863,13 +3945,20 @@ function codexEntry(root,g,opts){
   }
   tabs.appendChild(tabBtn('The grape',null));
   (g.regions||[]).forEach(function(r){tabs.appendChild(tabBtn(r.name,r.id));});
-  root.appendChild(tabs);
+  var twrap=el('div','railwrap');twrap.appendChild(tabs);root.appendChild(twrap);
+  setTimeout(function(){
+    var cur2=tabs.querySelector('[aria-selected="true"]');
+    if(cur2)tabs.scrollLeft=Math.max(0,cur2.offsetLeft-48);
+    twrap.classList.toggle('more',tabs.scrollWidth>tabs.clientWidth+4);
+  },0);
+  tabs.addEventListener('scroll',function(){
+    twrap.classList.toggle('more',tabs.scrollLeft+tabs.clientWidth<tabs.scrollWidth-4);
+  });
   var panel=el('div');panel.id='codexPanel';panel.setAttribute('role','tabpanel');
-  panel.setAttribute('aria-label',g.grape+(cur?' — '+cur:''));
+  panel.setAttribute('aria-label',g.grape+(region?' — '+region.name:''));
   root.appendChild(panel);
   root=panel;
 
-  var region=cur?(g.regions||[]).filter(function(r){return r.id===cur;})[0]:null;
   var cand=region?CAND_BY_ID[g.id+'::'+region.id]:null;
   var prof=cand?cand:{ranges:g.ranges,hues:g.hues||[],markers:g.markerObjs,
     texture:g.texture||[],producers:g.producers||[],identity:g.identity,color:g.color};
@@ -4028,7 +4117,9 @@ function renderHistory(){
       n.appendChild(el('span',null,'Sessions are held in memory only and will be lost when you close the tab. Export before you go.'));
       return n;})());
   var all=S.history.slice().sort(function(a,b){return b.ts-a.ts;});
-  var sc=scoredSessions();
+  /* the headline figures are about real tastings; practice has its own
+     record on the Practice tab, and its grids are generated             */
+  var sc=scoredSessions('blind');
   var stats=el('div','row');
   stats.appendChild(el('span','badge',all.length+' session'+(all.length===1?'':'s')));
   stats.appendChild(el('span','badge',sc.length+' scored'));
@@ -4131,7 +4222,8 @@ function renderHistory(){
   var lc=el('div','card');
   var lh=el('div','spread');
   lh.appendChild(el('h3',null,'Log'));
-  lh.appendChild(el('span','tiny dim',all.length+' entr'+(all.length===1?'y':'ies')));
+  var lcount=el('span','tiny dim');
+  lh.appendChild(lcount);
   lc.appendChild(lh);
   var fr=el('div','row');fr.style.margin='0 0 12px';
   [['all','All'],['blind','Blind'],['practice','Practice'],
@@ -4148,6 +4240,8 @@ function renderHistory(){
     if(f==='peeked')return !!h.peeked;
     return h.mode===f;
   });
+  lcount.textContent=rows.length+' entr'+(rows.length===1?'y':'ies')+
+    (rows.length!==all.length?' of '+all.length:'');
   if(!rows.length)lc.appendChild(el('div','empty','No entries match that filter.'));
   rows.slice(0,120).forEach(function(h){
     var a=h.actual?CAND_BY_ID[h.actual]:null;
@@ -4489,8 +4583,10 @@ function similarPanel(parent,obs,opts){
     row.appendChild(acts);
     box.appendChild(row);
   });
-  if(res.matches.length>(opts.limit||6))
-    box.appendChild(el('p','tiny dim','and '+(res.matches.length-(opts.limit||6))+' more below the top six.'));
+  var lim=opts.limit||6;
+  if(res.matches.length>lim)
+    box.appendChild(el('p','tiny dim','and '+(res.matches.length-lim)+
+      ' more below the top '+lim+'.'));
   parent.appendChild(box);
   return res;
 }
@@ -4652,7 +4748,7 @@ function settingsModal(){
       tr.appendChild(chip(o[1],S.theme===o[0],function(){
         S.theme=o[0];applyTheme();saveState();closeModal();settingsModal();}));});
     tw.appendChild(tr);sh.appendChild(tw);
-    toggle('Rosé, sparkling and fortified','adds them to the grid and the engine pool','extraTypes',function(){renderTaste();});
+    toggle('Rosé, sparkling and fortified','adds the wine types to the grid — note the database itself carries reds and whites only','extraTypes',function(){renderTaste();});
     toggle('Allow tannin on whites','for skin-contact and orange wines','tanninOnWhites',function(){renderTaste();});
     toggle('Highlight diagnostic tells','the ◆ accent on high-signal aroma chips','showTells',function(){renderTaste();});
     var mw=el('div','field'),ml=el('div','flabel');
